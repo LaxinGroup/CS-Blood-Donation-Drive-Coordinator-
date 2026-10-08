@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "next": "^16.4.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "eslint-config-next": "^16.4.0"
+  }
+}
