@@ -1,6 +1,13 @@
 // Centralized API Client for CS Blood Donation Drive Coordinator
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+function normalizeApiBaseUrl(baseUrl: string): string {
+    const trimmedBaseUrl = baseUrl.trim().replace(/\/+$/, '');
+    return /\/api$/i.test(trimmedBaseUrl) ? trimmedBaseUrl : `${trimmedBaseUrl}/api`;
+}
+
+const BASE_URL = normalizeApiBaseUrl(
+    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
+);
 
 export interface User {
     id: string;

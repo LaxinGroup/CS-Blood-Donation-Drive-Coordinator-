@@ -95,4 +95,5 @@ The navigation bar includes an **Instant Demo Switcher** with pre-configured acc
 ### Deploy Frontend to Vercel
 1. Connect repository and set root directory to `client/my-app`.
 2. Framework: Next.js.
-3. Environment variables: `NEXT_PUBLIC_API_URL` (set to your Render backend API e.g. `https://your-api.onrender.com/api`).
+3. Set the Vercel environment variable `NEXT_PUBLIC_API_URL` to the Render backend origin (for example, `https://your-api.onrender.com`) or API base URL (for example, `https://your-api.onrender.com/api`). The frontend normalizes either value to a single `/api` suffix.
+4. After redeploying, verify the backend health endpoint at `https://your-api.onrender.com/api/health`.
