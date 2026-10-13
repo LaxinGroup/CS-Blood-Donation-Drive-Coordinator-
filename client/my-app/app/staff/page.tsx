@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { api, Drive, Appointment } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { 
@@ -23,7 +24,8 @@ import WalkInModal from '@/components/WalkInModal';
 import PhlebotomyModal from '@/components/PhlebotomyModal';
 
 export default function StaffConsolePage() {
-    const { user, isAuthenticated, quickLoginAs } = useAuth();
+    const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+    const router = useRouter();
     const [drives, setDrives] = useState<Drive[]>([]);
     const [selectedDriveId, setSelectedDriveId] = useState<string | null>(null);
     const [queue, setQueue] = useState<Appointment[]>([]);
@@ -66,12 +68,13 @@ export default function StaffConsolePage() {
     };
 
     useEffect(() => {
+        if (authLoading) return;
         if (!isAuthenticated) {
-            quickLoginAs('STAFF');
-        } else {
-            loadDrives();
+            router.push('/login');
+            return;
         }
-    }, [isAuthenticated]);
+        loadDrives();
+    }, [isAuthenticated, authLoading]);
 
     useEffect(() => {
         if (selectedDriveId) {
@@ -146,11 +149,15 @@ export default function StaffConsolePage() {
                         onChange={(e) => setSelectedDriveId(e.target.value)}
                         className="p-2.5 rounded-xl glass-input text-xs font-bold text-slate-200 border border-white/10"
                     >
-                        {drives.map(d => (
-                            <option key={d.id} value={d.id}>
-                                {d.title} ({d.drive_date})
-                            </option>
-                        ))}
+                        {drives.length === 0 ? (
+                            <option value="">No records</option>
+                        ) : (
+                            drives.map(d => (
+                                <option key={d.id} value={d.id}>
+                                    {d.title} ({d.drive_date})
+                                </option>
+                            ))
+                        )}
                     </select>
 
                     {activeDrive && (
@@ -289,7 +296,7 @@ export default function StaffConsolePage() {
                             {filteredQueue.length === 0 ? (
                                 <tr>
                                     <td colSpan={7} className="p-8 text-center text-slate-500">
-                                        No donors in this filter category.
+                                        {queue.length === 0 ? 'No records' : 'No donors in this filter category.'}
                                     </td>
                                 </tr>
                             ) : (

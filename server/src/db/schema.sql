@@ -2,16 +2,20 @@
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
+-- Enum for user roles
+DO $$ BEGIN
+    CREATE TYPE user_role AS ENUM ('DONOR', 'COORDINATOR', 'STAFF', 'ADMIN');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
 -- 1. Users Table (Donor, Coordinator, Staff, Admin)
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     full_name VARCHAR(255) NOT NULL,
-    email VARCHAR(255) UNIQUE NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
-    role VARCHAR(50) NOT NULL CHECK (role IN ('DONOR', 'COORDINATOR', 'STAFF', 'ADMIN')),
-    blood_group VARCHAR(10),
-    phone VARCHAR(50),
-    date_of_birth DATE,
+    role user_role NOT NULL DEFAULT 'DONOR',
     last_donation_date DATE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -105,3 +109,25 @@ CREATE INDEX IF NOT EXISTS idx_appointments_user ON appointments(user_id);
 CREATE INDEX IF NOT EXISTS idx_appointments_drive ON appointments(drive_id);
 CREATE INDEX IF NOT EXISTS idx_donation_records_drive ON donation_records(drive_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, is_read);
+
+-- Idempotent migrations for DBs created before booking_reference existed
+ALTER TABLE appointments
+  ADD COLUMN IF NOT EXISTS booking_reference VARCHAR(50);
+
+UPDATE appointments
+SET booking_reference = 'BDC-' || UPPER(SUBSTRING(REPLACE(id::text, '-', '') FROM 1 FOR 6))
+WHERE booking_reference IS NULL;
+
+DO $$ BEGIN
+  ALTER TABLE appointments ALTER COLUMN booking_reference SET NOT NULL;
+EXCEPTION WHEN others THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE appointments ADD CONSTRAINT appointments_booking_reference_key UNIQUE (booking_reference);
+EXCEPTION WHEN others THEN NULL;
+END $$;
+
+-- Idempotent: notifications.type for DBs created without it
+ALTER TABLE notifications
+  ADD COLUMN IF NOT EXISTS type VARCHAR(50) DEFAULT 'INFO';

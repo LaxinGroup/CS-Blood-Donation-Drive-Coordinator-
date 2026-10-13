@@ -1,3 +1,7 @@
+const dns = require('dns');
+if (dns.setDefaultResultOrder) {
+    dns.setDefaultResultOrder('ipv4first');
+}
 const { Pool } = require('pg');
 const fs = require('fs');
 const path = require('path');
@@ -5,14 +9,18 @@ require('dotenv').config();
 
 const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/blood_drive_db';
 
+const isRemoteOrSsl = connectionString.includes('sslmode=require') ||
+    connectionString.includes('neon.tech') ||
+    connectionString.includes('render.com') ||
+    connectionString.includes('supabase.co') ||
+    (!connectionString.includes('localhost') && !connectionString.includes('127.0.0.1'));
+
 const pool = new Pool({
     connectionString,
-    ssl: process.env.NODE_ENV === 'production' && !connectionString.includes('localhost') 
-        ? { rejectUnauthorized: false } 
-        : false,
+    ssl: isRemoteOrSsl ? { rejectUnauthorized: false } : false,
     max: 20,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 5000,
+    connectionTimeoutMillis: 30000,
 });
 
 let isConnected = false;

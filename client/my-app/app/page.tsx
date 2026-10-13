@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { api, Drive, SystemOverview, Appointment } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { 
@@ -25,7 +26,8 @@ import SlotPickerModal from '@/components/SlotPickerModal';
 import BookingConfirmationModal from '@/components/BookingConfirmationModal';
 
 export default function HomePage() {
-    const { isAuthenticated, user, quickLoginAs } = useAuth();
+    const { isAuthenticated, user } = useAuth();
+    const router = useRouter();
     const [drives, setDrives] = useState<Drive[]>([]);
     const [overview, setOverview] = useState<SystemOverview | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -59,11 +61,11 @@ export default function HomePage() {
     }, []);
 
     const handleStartBooking = async (drive: Drive) => {
-        setSelectedDrive(drive);
-        // If not logged in, auto-login as donor for smooth demo experience
         if (!isAuthenticated) {
-            await quickLoginAs('DONOR');
+            router.push('/login');
+            return;
         }
+        setSelectedDrive(drive);
         setIsPreScreenOpen(true);
     };
 
@@ -232,11 +234,17 @@ export default function HomePage() {
                             <div key={n} className="h-64 rounded-2xl glass-panel animate-pulse" />
                         ))}
                     </div>
+                ) : drives.length === 0 ? (
+                    <div className="text-center py-16 glass-panel rounded-2xl">
+                        <AlertCircle className="w-10 h-10 text-slate-500 mx-auto mb-2" />
+                        <p className="text-slate-300 font-semibold">No records</p>
+                        <p className="text-xs text-slate-500 mt-1">No blood drives scheduled yet. Check back soon or ask your campus coordinator.</p>
+                    </div>
                 ) : filteredDrives.length === 0 ? (
                     <div className="text-center py-16 glass-panel rounded-2xl">
                         <AlertCircle className="w-10 h-10 text-slate-500 mx-auto mb-2" />
                         <p className="text-slate-300 font-semibold">No drives matched your search.</p>
-                        <p className="text-xs text-slate-500 mt-1">Check back soon or ask your campus coordinator.</p>
+                        <p className="text-xs text-slate-500 mt-1">Try a different venue or drive title.</p>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

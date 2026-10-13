@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { api, NotificationItem } from '@/lib/api';
 import { 
@@ -12,25 +12,19 @@ import {
     ClipboardCheck, 
     ShieldCheck, 
     Bell, 
-    User as UserIcon, 
     LogOut, 
-    Sparkles,
-    ChevronDown,
     Menu,
     X,
-    Activity
 } from 'lucide-react';
 import NotificationModal from './NotificationModal';
 
 export default function Navbar() {
-    const { user, isAuthenticated, logout, quickLoginAs } = useAuth();
+    const { user, isAuthenticated, logout } = useAuth();
     const pathname = usePathname();
-    const router = useRouter();
     const [isNotifOpen, setIsNotifOpen] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
     const [notifications, setNotifications] = useState<NotificationItem[]>([]);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-    const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
 
     const fetchNotifications = async () => {
         if (!isAuthenticated) return;
@@ -51,25 +45,11 @@ export default function Navbar() {
         }
     }, [isAuthenticated]);
 
-    const handleRoleSwitch = async (role: 'DONOR' | 'COORDINATOR' | 'STAFF' | 'ADMIN') => {
-        try {
-            await quickLoginAs(role);
-            setIsRoleDropdownOpen(false);
-            if (role === 'DONOR') router.push('/donor');
-            else if (role === 'COORDINATOR') router.push('/coordinator');
-            else if (role === 'STAFF') router.push('/staff');
-            else if (role === 'ADMIN') router.push('/admin');
-        } catch (e) {
-            console.error('Quick login failed', e);
-        }
-    };
-
     return (
         <>
             <header className="sticky top-0 z-40 w-full border-b border-white/10 glass-panel backdrop-blur-xl">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex items-center justify-between h-16">
-                        {/* Logo */}
                         <Link href="/" className="flex items-center space-x-3 group">
                             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-red-600 via-rose-600 to-red-500 flex items-center justify-center shadow-lg shadow-red-600/30 group-hover:scale-105 transition-transform">
                                 <Heart className="w-5 h-5 text-white fill-white" />
@@ -84,7 +64,6 @@ export default function Navbar() {
                             </div>
                         </Link>
 
-                        {/* Desktop Navigation Links */}
                         <nav className="hidden md:flex items-center space-x-1">
                             <Link
                                 href="/"
@@ -95,7 +74,6 @@ export default function Navbar() {
                                 Home
                             </Link>
 
-                            {/* Role-Specific Portal Links */}
                             {(!user || user.role === 'DONOR') && (
                                 <Link
                                     href="/donor"
@@ -145,56 +123,7 @@ export default function Navbar() {
                             )}
                         </nav>
 
-                        {/* Right Section: Quick Role Switcher, Notification, Auth */}
                         <div className="hidden md:flex items-center space-x-3">
-                            {/* Role Switcher Demo Dropdown */}
-                            <div className="relative">
-                                <button
-                                    onClick={() => setIsRoleDropdownOpen(!isRoleDropdownOpen)}
-                                    className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-slate-200 flex items-center space-x-1.5 transition-colors"
-                                    title="Switch Role for Testing"
-                                >
-                                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                                    <span>Demo Switch: <strong className="text-red-400">{user?.role || 'Guest'}</strong></span>
-                                    <ChevronDown className="w-3 h-3 text-slate-400" />
-                                </button>
-
-                                {isRoleDropdownOpen && (
-                                    <div className="absolute right-0 mt-2 w-48 rounded-xl glass-panel p-1.5 border border-white/10 shadow-2xl z-50">
-                                        <div className="text-[10px] uppercase font-bold text-slate-400 px-2 py-1">Instant Demo Switch</div>
-                                        <button
-                                            onClick={() => handleRoleSwitch('DONOR')}
-                                            className="w-full text-left px-2 py-1.5 rounded-lg text-xs hover:bg-red-500/10 hover:text-red-400 text-slate-300 flex items-center justify-between"
-                                        >
-                                            <span>Donor (Thabo)</span>
-                                            <span className="text-[10px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded">O-</span>
-                                        </button>
-                                        <button
-                                            onClick={() => handleRoleSwitch('COORDINATOR')}
-                                            className="w-full text-left px-2 py-1.5 rounded-lg text-xs hover:bg-blue-500/10 hover:text-blue-400 text-slate-300 flex items-center justify-between"
-                                        >
-                                            <span>Coordinator (Nkululeko)</span>
-                                            <span className="text-[10px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded">Admin</span>
-                                        </button>
-                                        <button
-                                            onClick={() => handleRoleSwitch('STAFF')}
-                                            className="w-full text-left px-2 py-1.5 rounded-lg text-xs hover:bg-emerald-500/10 hover:text-emerald-400 text-slate-300 flex items-center justify-between"
-                                        >
-                                            <span>Medical Staff (Mary)</span>
-                                            <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded">Desk</span>
-                                        </button>
-                                        <button
-                                            onClick={() => handleRoleSwitch('ADMIN')}
-                                            className="w-full text-left px-2 py-1.5 rounded-lg text-xs hover:bg-amber-500/10 hover:text-amber-400 text-slate-300 flex items-center justify-between"
-                                        >
-                                            <span>System Admin (Sarah)</span>
-                                            <span className="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded">Root</span>
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Notifications Bell */}
                             {isAuthenticated && (
                                 <button
                                     onClick={() => setIsNotifOpen(true)}
@@ -210,7 +139,6 @@ export default function Navbar() {
                                 </button>
                             )}
 
-                            {/* User Profile / Auth State */}
                             {isAuthenticated && user ? (
                                 <div className="flex items-center space-x-2 pl-2 border-l border-white/10">
                                     <div className="flex flex-col text-right">
@@ -243,7 +171,6 @@ export default function Navbar() {
                             )}
                         </div>
 
-                        {/* Mobile Menu Button */}
                         <div className="flex md:hidden items-center space-x-2">
                             {isAuthenticated && (
                                 <button
@@ -268,7 +195,6 @@ export default function Navbar() {
                     </div>
                 </div>
 
-                {/* Mobile Menu Drawer */}
                 {isMobileMenuOpen && (
                     <div className="md:hidden glass-panel border-b border-white/10 px-4 pt-2 pb-6 space-y-3">
                         <Link
@@ -308,40 +234,28 @@ export default function Navbar() {
                                 Admin Panel
                             </Link>
                         )}
-                        <div className="pt-3 border-t border-white/10">
-                            <p className="text-xs text-slate-400 mb-2 font-semibold">Switch Demo Role:</p>
-                            <div className="grid grid-cols-2 gap-2">
-                                <button
-                                    onClick={() => { handleRoleSwitch('DONOR'); setIsMobileMenuOpen(false); }}
-                                    className="p-2 rounded bg-slate-800 text-xs text-left text-slate-200 hover:bg-slate-700"
+                        {!isAuthenticated && (
+                            <div className="pt-3 border-t border-white/10 flex gap-2">
+                                <Link
+                                    href="/login"
+                                    onClick={() => setIsMobileMenuOpen(false)}
+                                    className="flex-1 text-center px-3 py-2 rounded-lg text-sm font-semibold text-slate-200 hover:bg-white/10"
                                 >
-                                    Donor (Thabo)
-                                </button>
-                                <button
-                                    onClick={() => { handleRoleSwitch('COORDINATOR'); setIsMobileMenuOpen(false); }}
-                                    className="p-2 rounded bg-slate-800 text-xs text-left text-slate-200 hover:bg-slate-700"
+                                    Sign In
+                                </Link>
+                                <Link
+                                    href="/register"
+                                    onClick={() => setIsMobileMenuOpen(false)}
+                                    className="flex-1 text-center px-3 py-2 rounded-lg text-sm font-semibold btn-primary"
                                 >
-                                    Coordinator (Nkululeko)
-                                </button>
-                                <button
-                                    onClick={() => { handleRoleSwitch('STAFF'); setIsMobileMenuOpen(false); }}
-                                    className="p-2 rounded bg-slate-800 text-xs text-left text-slate-200 hover:bg-slate-700"
-                                >
-                                    Staff (Sister Mary)
-                                </button>
-                                <button
-                                    onClick={() => { handleRoleSwitch('ADMIN'); setIsMobileMenuOpen(false); }}
-                                    className="p-2 rounded bg-slate-800 text-xs text-left text-slate-200 hover:bg-slate-700"
-                                >
-                                    Admin (Dr. Sarah)
-                                </button>
+                                    Register
+                                </Link>
                             </div>
-                        </div>
+                        )}
                     </div>
                 )}
             </header>
 
-            {/* Notification Drawer Modal */}
             <NotificationModal
                 isOpen={isNotifOpen}
                 onClose={() => { setIsNotifOpen(false); fetchNotifications(); }}

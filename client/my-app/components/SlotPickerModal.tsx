@@ -2,8 +2,7 @@
 
 import React, { useState } from 'react';
 import { api, Drive, DriveSlot, Appointment } from '@/lib/api';
-import { useAuth } from '@/context/AuthContext';
-import { Clock, Calendar, MapPin, Users, Check, AlertTriangle, RefreshCw, X, ShieldCheck } from 'lucide-react';
+import { Clock, Calendar, MapPin, Check, AlertTriangle, RefreshCw, X, ShieldCheck } from 'lucide-react';
 
 interface SlotPickerModalProps {
     isOpen: boolean;
@@ -14,9 +13,7 @@ interface SlotPickerModalProps {
 }
 
 export default function SlotPickerModal({ isOpen, onClose, drive, preScreenAnswers, onSuccess }: SlotPickerModalProps) {
-    const { user, isAuthenticated } = useAuth();
     const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
-    const [bloodGroup, setBloodGroup] = useState<string>(user?.blood_group || 'O+');
     const [isBooking, setIsBooking] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -37,8 +34,7 @@ export default function SlotPickerModal({ isOpen, onClose, drive, preScreenAnswe
             const res = await api.bookAppointment({
                 drive_id: drive.id,
                 slot_id: selectedSlotId,
-                pre_screen_answers: preScreenAnswers,
-                blood_group: bloodGroup
+                pre_screen_answers: preScreenAnswers
             });
 
             onSuccess(res.appointment);
@@ -98,29 +94,6 @@ export default function SlotPickerModal({ isOpen, onClose, drive, preScreenAnswe
                         </div>
                     )}
 
-                    {/* Donor Blood Group Verification */}
-                    <div className="p-4 rounded-xl bg-slate-900/60 border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div>
-                            <label className="text-xs font-semibold text-white block">Your Blood Group</label>
-                            <span className="text-[11px] text-slate-400">Helps organizers prepare collection supplies</span>
-                        </div>
-                        <select
-                            value={bloodGroup}
-                            onChange={(e) => setBloodGroup(e.target.value)}
-                            className="p-2 rounded-lg glass-input text-xs font-bold text-red-400 border border-white/10"
-                        >
-                            <option value="O+">O Positive (O+)</option>
-                            <option value="O-">O Negative (O-) Universal</option>
-                            <option value="A+">A Positive (A+)</option>
-                            <option value="A-">A Negative (A-)</option>
-                            <option value="B+">B Positive (B+)</option>
-                            <option value="B-">B Negative (B-)</option>
-                            <option value="AB+">AB Positive (AB+)</option>
-                            <option value="AB-">AB Negative (AB-)</option>
-                            <option value="UNKNOWN">Don&apos;t Know / First Time</option>
-                        </select>
-                    </div>
-
                     {/* Discrete Time Slots Grid */}
                     <div>
                         <div className="flex items-center justify-between mb-3">
@@ -129,8 +102,9 @@ export default function SlotPickerModal({ isOpen, onClose, drive, preScreenAnswe
                         </div>
 
                         {slots.length === 0 ? (
-                            <div className="text-center py-8 text-slate-400 text-xs">
-                                No slots configured for this drive.
+                            <div className="text-center py-8 space-y-1">
+                                <p className="text-sm font-semibold text-slate-300">No records</p>
+                                <p className="text-xs text-slate-400">No slots configured for this drive.</p>
                             </div>
                         ) : (
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">

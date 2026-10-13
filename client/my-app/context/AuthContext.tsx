@@ -11,7 +11,6 @@ interface AuthContextType {
     login: (email: string, password: string) => Promise<void>;
     register: (payload: { full_name: string; email: string; password: string; role?: string; blood_group?: string; phone?: string; date_of_birth?: string }) => Promise<void>;
     logout: () => void;
-    quickLoginAs: (role: 'DONOR' | 'COORDINATOR' | 'STAFF' | 'ADMIN') => Promise<void>;
     refreshUser: () => Promise<void>;
 }
 
@@ -66,16 +65,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setToken(null);
     };
 
-    const quickLoginAs = async (role: 'DONOR' | 'COORDINATOR' | 'STAFF' | 'ADMIN') => {
-        const roleEmails = {
-            DONOR: 'donor@campus.edu',
-            COORDINATOR: 'coordinator@campus.edu',
-            STAFF: 'staff@campus.edu',
-            ADMIN: 'admin@campus.edu',
-        };
-        await login(roleEmails[role], 'password123');
-    };
-
     return (
         <AuthContext.Provider
             value={{
@@ -86,7 +75,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 login,
                 register,
                 logout,
-                quickLoginAs,
                 refreshUser,
             }}
         >

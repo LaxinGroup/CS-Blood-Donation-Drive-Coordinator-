@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { api, Appointment, Drive } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { 
@@ -25,7 +26,8 @@ import SlotPickerModal from '@/components/SlotPickerModal';
 import BookingConfirmationModal from '@/components/BookingConfirmationModal';
 
 export default function DonorDashboardPage() {
-    const { user, isAuthenticated, quickLoginAs } = useAuth();
+    const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+    const router = useRouter();
     const [appointments, setAppointments] = useState<Appointment[]>([]);
     const [drives, setDrives] = useState<Drive[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -57,12 +59,13 @@ export default function DonorDashboardPage() {
     };
 
     useEffect(() => {
+        if (authLoading) return;
         if (!isAuthenticated) {
-            quickLoginAs('DONOR');
-        } else {
-            loadDonorData();
+            router.push('/login');
+            return;
         }
-    }, [isAuthenticated]);
+        loadDonorData();
+    }, [isAuthenticated, authLoading]);
 
     // Next Eligible Date Calculation (56 days cooldown)
     const calculateEligibilityCountdown = () => {
@@ -138,12 +141,7 @@ export default function DonorDashboardPage() {
                             <Heart className="w-8 h-8 fill-red-500" />
                         </div>
                         <div>
-                            <div className="flex items-center space-x-2">
-                                <h1 className="text-xl sm:text-2xl font-black text-white">{user?.full_name || 'Student Donor'}</h1>
-                                <span className="px-2.5 py-0.5 rounded-full bg-red-500/20 border border-red-500/30 text-red-400 text-xs font-bold font-mono">
-                                    {user?.blood_group || 'O+'}
-                                </span>
-                            </div>
+                            <h1 className="text-xl sm:text-2xl font-black text-white">{user?.full_name || 'Student Donor'}</h1>
                             <p className="text-xs text-slate-400 mt-0.5">{user?.email}</p>
                             <div className="flex items-center space-x-2 text-xs text-slate-300 mt-2">
                                 <Award className="w-4 h-4 text-amber-400" />
@@ -194,8 +192,8 @@ export default function DonorDashboardPage() {
                 ) : activeAppointments.length === 0 ? (
                     <div className="p-8 rounded-2xl glass-panel border border-white/5 text-center space-y-3">
                         <Calendar className="w-10 h-10 text-slate-600 mx-auto" />
-                        <p className="text-slate-300 text-sm font-semibold">You have no upcoming donation bookings.</p>
-                        <p className="text-xs text-slate-400 max-w-sm mx-auto">Browse upcoming campus blood drives below, take the 60-second pre-screen, and pick your time slot.</p>
+                        <p className="text-slate-300 text-sm font-semibold">No records</p>
+                        <p className="text-xs text-slate-400 max-w-sm mx-auto">You have no upcoming donation bookings. Browse drives below to book a slot.</p>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -262,6 +260,12 @@ export default function DonorDashboardPage() {
                     </h2>
                 </div>
 
+                {drives.length === 0 ? (
+                    <div className="p-8 rounded-2xl glass-panel border border-white/5 text-center space-y-1">
+                        <p className="text-sm font-semibold text-slate-300">No records</p>
+                        <p className="text-xs text-slate-400">No upcoming blood drives available to book.</p>
+                    </div>
+                ) : (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                     {drives.map((drive) => (
                         <div key={drive.id} className="p-5 rounded-2xl glass-card border border-white/10 flex flex-col justify-between space-y-4">
@@ -297,6 +301,7 @@ export default function DonorDashboardPage() {
                         </div>
                     ))}
                 </div>
+                )}
             </div>
 
             {/* DONATION HISTORY TIMELINE */}
@@ -307,8 +312,9 @@ export default function DonorDashboardPage() {
                 </h2>
 
                 {completedHistory.length === 0 ? (
-                    <div className="p-6 rounded-2xl glass-panel text-center text-xs text-slate-400">
-                        No completed donations recorded yet. Your impact journey starts with your first campus booking!
+                    <div className="p-6 rounded-2xl glass-panel text-center space-y-1">
+                        <p className="text-sm font-semibold text-slate-300">No records</p>
+                        <p className="text-xs text-slate-400">No completed donations recorded yet.</p>
                     </div>
                 ) : (
                     <div className="space-y-3">

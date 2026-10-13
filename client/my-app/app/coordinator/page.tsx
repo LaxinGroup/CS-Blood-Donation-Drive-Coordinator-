@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { api, Drive, DriveAnalytics } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { 
@@ -8,12 +9,10 @@ import {
     Calendar, 
     Clock, 
     MapPin, 
-    Users, 
     PlusCircle, 
     Radio, 
     Download, 
     Printer, 
-    Activity, 
     CheckCircle2, 
     AlertTriangle, 
     Target, 
@@ -27,7 +26,8 @@ import CreateDriveModal from '@/components/CreateDriveModal';
 import BroadcastModal from '@/components/BroadcastModal';
 
 export default function CoordinatorDashboardPage() {
-    const { user, isAuthenticated, quickLoginAs } = useAuth();
+    const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+    const router = useRouter();
     const [drives, setDrives] = useState<Drive[]>([]);
     const [selectedDriveId, setSelectedDriveId] = useState<string | null>(null);
     const [analytics, setAnalytics] = useState<DriveAnalytics | null>(null);
@@ -67,12 +67,13 @@ export default function CoordinatorDashboardPage() {
     };
 
     useEffect(() => {
+        if (authLoading) return;
         if (!isAuthenticated) {
-            quickLoginAs('COORDINATOR');
-        } else {
-            loadDrives();
+            router.push('/login');
+            return;
         }
-    }, [isAuthenticated]);
+        loadDrives();
+    }, [isAuthenticated, authLoading]);
 
     useEffect(() => {
         if (selectedDriveId) {
@@ -121,24 +122,33 @@ export default function CoordinatorDashboardPage() {
             {/* DRIVE SELECTOR STRIP */}
             <div className="flex items-center space-x-3 overflow-x-auto pb-2">
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider shrink-0">Select Campaign:</span>
-                {drives.map((d) => (
-                    <button
-                        key={d.id}
-                        onClick={() => setSelectedDriveId(d.id)}
-                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center space-x-2 border ${
-                            selectedDriveId === d.id
-                                ? 'bg-red-600 text-white border-red-500 shadow-lg shadow-red-950/40'
-                                : 'bg-slate-800/80 text-slate-300 border-white/10 hover:bg-slate-700'
-                        }`}
-                    >
-                        <span>{d.title}</span>
-                        <span className="text-[10px] opacity-75 font-mono">({d.drive_date})</span>
-                    </button>
-                ))}
+                {drives.length === 0 && !isLoadingDrives ? (
+                    <span className="text-xs text-slate-500">No records</span>
+                ) : (
+                    drives.map((d) => (
+                        <button
+                            key={d.id}
+                            onClick={() => setSelectedDriveId(d.id)}
+                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center space-x-2 border ${
+                                selectedDriveId === d.id
+                                    ? 'bg-red-600 text-white border-red-500 shadow-lg shadow-red-950/40'
+                                    : 'bg-slate-800/80 text-slate-300 border-white/10 hover:bg-slate-700'
+                            }`}
+                        >
+                            <span>{d.title}</span>
+                            <span className="text-[10px] opacity-75 font-mono">({d.drive_date})</span>
+                        </button>
+                    ))
+                )}
             </div>
 
             {/* MAIN ANALYTICS OVERVIEW */}
-            {isLoadingAnalytics || !analytics ? (
+            {!isLoadingDrives && drives.length === 0 ? (
+                <div className="p-12 rounded-3xl glass-panel border border-white/10 text-center space-y-2">
+                    <p className="text-slate-300 font-semibold">No records</p>
+                    <p className="text-xs text-slate-500">No blood drives scheduled yet. Use &quot;Schedule New Drive&quot; to create one.</p>
+                </div>
+            ) : isLoadingAnalytics || !analytics ? (
                 <div className="h-96 rounded-3xl glass-panel animate-pulse" />
             ) : (
                 <div className="space-y-6">
@@ -194,29 +204,8 @@ export default function CoordinatorDashboardPage() {
                         </div>
                     </div>
 
-                    {/* VISUAL CHARTS ROW: Blood Groups & Hourly Distribution */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* Blood Type Breakdown Chart */}
-                        <div className="p-6 rounded-3xl glass-panel border border-white/10 space-y-4">
-                            <div className="flex items-center justify-between">
-                                <h3 className="font-bold text-white text-sm flex items-center space-x-2">
-                                    <Activity className="w-4 h-4 text-red-500" />
-                                    <span>Blood Group Distribution</span>
-                                </h3>
-                                <span className="text-xs text-slate-400">All registered & collected</span>
-                            </div>
-
-                            <div className="grid grid-cols-4 gap-3 pt-2">
-                                {Object.entries(analytics.blood_group_distribution).map(([group, count]) => (
-                                    <div key={group} className="p-3 rounded-xl bg-slate-800/80 border border-white/5 text-center">
-                                        <span className="text-xs font-mono font-bold text-red-400 block">{group}</span>
-                                        <strong className="text-lg font-black text-white">{count}</strong>
-                                        <span className="text-[10px] text-slate-400 block">donors</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
+                    {/* VISUAL CHARTS ROW: Hourly Distribution */}
+                    <div className="grid grid-cols-1 gap-6">
                         {/* Peak Arrival Hours Chart */}
                         <div className="p-6 rounded-3xl glass-panel border border-white/10 space-y-4">
                             <div className="flex items-center justify-between">
@@ -229,7 +218,7 @@ export default function CoordinatorDashboardPage() {
 
                             <div className="space-y-2 pt-2 max-h-48 overflow-y-auto">
                                 {Object.entries(analytics.hourly_distribution).length === 0 ? (
-                                    <p className="text-xs text-slate-500 text-center py-6">No hourly traffic data yet.</p>
+                                    <p className="text-xs text-slate-500 text-center py-6">No records</p>
                                 ) : (
                                     Object.entries(analytics.hourly_distribution).map(([hour, count]) => {
                                         const maxTraffic = Math.max(...Object.values(analytics.hourly_distribution), 1);
@@ -298,7 +287,7 @@ export default function CoordinatorDashboardPage() {
                                     {analytics.donor_list.length === 0 ? (
                                         <tr>
                                             <td colSpan={7} className="p-6 text-center text-slate-500">
-                                                No donors registered for this drive yet.
+                                                No records
                                             </td>
                                         </tr>
                                     ) : (

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { api, User } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { ShieldCheck, Users, Lock, ShieldAlert, Check, RefreshCw, KeyRound, Terminal, AlertCircle } from 'lucide-react';
@@ -18,7 +19,8 @@ interface AuditLog {
 }
 
 export default function AdminPage() {
-    const { user, isAuthenticated, quickLoginAs } = useAuth();
+    const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+    const router = useRouter();
     const [users, setUsers] = useState<User[]>([]);
     const [logs, setLogs] = useState<AuditLog[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -41,12 +43,17 @@ export default function AdminPage() {
     };
 
     useEffect(() => {
-        if (!isAuthenticated || user?.role !== 'ADMIN') {
-            quickLoginAs('ADMIN');
-        } else {
-            loadAdminData();
+        if (authLoading) return;
+        if (!isAuthenticated) {
+            router.push('/login');
+            return;
         }
-    }, [isAuthenticated, user?.role]);
+        if (user?.role !== 'ADMIN') {
+            router.push('/');
+            return;
+        }
+        loadAdminData();
+    }, [isAuthenticated, user?.role, authLoading]);
 
     const handleRoleChange = async (userId: string, newRole: string) => {
         try {
@@ -108,7 +115,13 @@ export default function AdminPage() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
-                            {users.map((u) => (
+                            {users.length === 0 ? (
+                                <tr>
+                                    <td colSpan={5} className="p-6 text-center text-slate-500">
+                                        No records
+                                    </td>
+                                </tr>
+                            ) : users.map((u) => (
                                 <tr key={u.id} className="hover:bg-white/5 transition-colors">
                                     <td className="p-3 font-semibold text-white">{u.full_name}</td>
                                     <td className="p-3 font-mono text-slate-400">{u.email}</td>
@@ -154,7 +167,7 @@ export default function AdminPage() {
 
                 <div className="space-y-2 max-h-72 overflow-y-auto font-mono text-xs">
                     {logs.length === 0 ? (
-                        <p className="text-slate-500 text-center py-6">No audit records logged yet.</p>
+                        <p className="text-slate-500 text-center py-6">No records</p>
                     ) : (
                         logs.map((log) => (
                             <div key={log.id} className="p-3 rounded-xl bg-slate-900/60 border border-white/5 flex items-center justify-between">

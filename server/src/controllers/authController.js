@@ -7,7 +7,7 @@ const AuthController = {
     // Register New User (Donor by default, or with role)
     async register(req, res, next) {
         try {
-            const { full_name, email, password, role = 'DONOR', blood_group, phone, date_of_birth } = req.body;
+            const { full_name, email, password, role = 'DONOR' } = req.body;
 
             if (!full_name || !email || !password) {
                 return res.status(400).json({ success: false, message: 'Full name, email, and password are required.' });
@@ -18,15 +18,13 @@ const AuthController = {
                 return res.status(400).json({ success: false, message: 'An account with this email address already exists.' });
             }
 
+            const normalizedRole = ['DONOR', 'COORDINATOR', 'STAFF', 'ADMIN'].includes(role) ? role : 'DONOR';
             const password_hash = await bcrypt.hash(password, 10);
             const user = await DataStore.createUser({
                 full_name,
                 email,
                 password_hash,
-                role: ['DONOR', 'COORDINATOR', 'STAFF', 'ADMIN'].includes(role) ? role : 'DONOR',
-                blood_group,
-                phone,
-                date_of_birth
+                role: normalizedRole
             });
 
             // Issue JWT
@@ -120,12 +118,9 @@ const AuthController = {
     // Update Profile
     async updateMe(req, res, next) {
         try {
-            const { full_name, phone, blood_group, date_of_birth } = req.body;
+            const { full_name } = req.body;
             const updated = await DataStore.updateUser(req.user.id, {
-                ...(full_name && { full_name }),
-                ...(phone && { phone }),
-                ...(blood_group && { blood_group }),
-                ...(date_of_birth && { date_of_birth })
+                ...(full_name && { full_name })
             });
 
             const { password_hash, ...safeUser } = updated;
