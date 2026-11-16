@@ -1,0 +1,18 @@
+/*
+  The design-taste-frontend kit, loaded as plain files inside the "kit" cascade layer.
+  globals.css declares the layer order: theme, base, kit, components, utilities. So the kit's rules
+  beat Tailwind's preflight (base) and lose to Tailwind utilities, which the app pages use for layout.
+  Order inside the layer as the kit asks: system, cards, motion, backgrounds, layout, icons.
+*/
+@import url("/assets/system.css") layer(kit);
+@import url("/assets/ui/cards.css") layer(kit);
+@import url("/assets/backgrounds/backgrounds.css") layer(kit);
+@import url("/assets/layout/layout.css") layer(kit);
+@import url("/assets/icons/icon.css") layer(kit);
+@import url("/assets/ui/base.css") layer(kit);
+@import url("/assets/ui/window/fragment.css") layer(kit);
+@import url("/assets/ui/calendar/fragment.css") layer(kit);
+@import url("/assets/ui/notify/fragment.css") layer(kit);
+@import url("/assets/ui/checklist/fragment.css") layer(kit);
+@import url("/assets/ui/stat/fragment.css") layer(kit);
+@import url("/assets/ui/toggles/fragment.css") layer(kit);

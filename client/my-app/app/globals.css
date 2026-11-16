@@ -1,115 +1,237 @@
-@import "tailwindcss";
+/* Layer order: the design kit (public/kit.css, layer "kit") sits above Tailwind's preflight and
+   below its utilities, so app pages can lay out with utilities on top of the kit's system. */
+@layer theme, base, kit, components, utilities;
 
+@import "tailwindcss" source(none);
+@source "../app";
+@source "../components";
+@source "../context";
+@source "../lib";
+/* the kit's grid columns (.start-7) share a name with Tailwind's inset utilities: keep Tailwind off them */
+@source not inline("start-{1,2,3,4,5,6,7,8,9,10,11,12}");
+
+/* The dealt tokens (start.mjs brand: the mint-pink-accounts ground and ink, the client's crimson
+   as the one accent; Schibsted Grotesk + JetBrains Mono, the first pairing dealt). Unlayered, so they win over the kit's
+   defaults and over layout.css's --ly-scale reset. */
 :root {
-  --background: #090d16;
-  --foreground: #f1f5f9;
-  --card-bg: rgba(15, 23, 42, 0.75);
-  --card-border: rgba(255, 255, 255, 0.08);
-  --crimson-primary: #dc2626;
-  --crimson-glow: rgba(220, 38, 38, 0.25);
-  --accent-cyan: #06b6d4;
-  --accent-emerald: #10b981;
-  --accent-amber: #f59e0b;
+  --p-bg: #f8f8f8; --p-surface: #eeeeee; --p-ink: #0a0a0a; --p-muted: #696969;
+  --p-accent: #b91c1c; --p-accent-ink: #f8f8f8; --p-action: #b91c1c; --p-action-ink: #f8f8f8;
+  --p-inv-bg: #0a0a0a; --p-inv-surface: #171717; --p-inv-ink: #f8f8f8; --p-inv-muted: #939393;
+  --p-inv-accent: #b91c1c; --p-inv-accent-ink: #f8f8f8; --p-inv-action: #b91c1c; --p-inv-action-ink: #f8f8f8;
+  --font-display: "Schibsted Grotesk", system-ui, sans-serif;
+  --font-text: "Schibsted Grotesk", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --display-weight: 400;
+  --display-tracking: -0.035em;
+  --display-tracking-xl: -0.042em;
+  --ly-scale: 0.98;
+
+  /* app-only tokens: the white card one step off the ground, and three quiet states */
+  --app-card: #ffffff;
+  --ok: #1f6b3a;
+  --warn: #8a5a00;
+  --bad: var(--p-action);
 }
 
-body {
-  background-color: #070a12;
-  background-image: 
-    radial-gradient(at 0% 0%, rgba(220, 38, 38, 0.12) 0px, transparent 50%),
-    radial-gradient(at 100% 100%, rgba(14, 165, 233, 0.08) 0px, transparent 50%),
-    radial-gradient(at 50% 50%, rgba(30, 41, 59, 0.3) 0px, transparent 100%);
-  color: #f1f5f9;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-  min-height: 100vh;
-  overflow-x: hidden;
+/* Tailwind reads the same tokens, so app pages write text-ink, bg-card, border-line, text-action. */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-card: var(--app-card);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-action: var(--action);
+  --color-action-ink: var(--action-ink);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --font-sans: var(--font-text);
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono);
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
 }
 
-/* Glassmorphism Classes */
-.glass-panel {
-  background: rgba(15, 23, 42, 0.65);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
+/* ---------- The landing page's own CSS (only what sits inside a visual, as the kit allows) ---------- */
+
+/* app-frame recipe (sections-library.md) */
+.app.ui { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); margin-top: var(--s-7); background: var(--u-bg); border: 1px solid var(--u-border); border-radius: var(--u-r); box-shadow: var(--u-shadow); }
+.app > .app__pane { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+.app > .app__pane + .app__pane { border-left: 1px solid var(--u-line); }
+.app > .app__pane > .ui-panel { width: 100%; border: 0; border-radius: 0; box-shadow: none; }
+.app > .app__pane::after { content: ""; position: absolute; inset: auto 0 0 0; height: 64px; background: linear-gradient(transparent, var(--u-bg)); pointer-events: none; }
+.app > .app__pane--open { display: grid; place-items: start center; padding: var(--s-6) var(--s-6) 0; }
+.app > .app__pane--open > .ui-panel { max-width: 440px; border: 1px solid var(--u-line); border-radius: var(--u-r); }
+@media (min-width: 1024px) and (max-width: 1279px) { .app.ui { grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); } }
+@media (max-width: 1023px) {
+  .app.ui { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .app > .app__pane--list { max-height: 252px; }
+  .app > .app__pane--list::after { display: none; }
+  .app .ui-win__side { display: none; }
+  .app .ui-win__body { grid-template-columns: minmax(0, 1fr); }
+  .app > .app__pane + .app__pane { border-left: 0; border-top: 1px solid var(--u-line); }
+}
+@media (max-width: 639px) {
+  .app.ui { grid-template-rows: minmax(0, 1fr); }
+  .app > .app__pane--list { display: none; }
+  .app > .app__pane + .app__pane { border-top: 0; }
+  .app > .app__pane--open { padding: var(--s-4) var(--s-4) 0; }
 }
 
-.glass-card {
-  background: rgba(30, 41, 59, 0.45);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+/* the features 2x2: one panel height for the group */
+#teams .panel { --p-h: 300px; }
+@media (min-width: 1024px) and (max-width: 1279px) { #teams .panel { --p-h: 260px; } }
+@media (max-width: 639px) { #teams .panel { --p-h: 164px; } }
+
+/* a phone: the FAQ and the eligibility split each take two screens (.g2m), words on the first, the rest on the second */
+@media (max-width: 639px) {
+  :is(#faq, #eligibility) > .wrap > .grid { display: contents; }
+  /* the photograph takes its whole screen, so the section ends on it, not on air */
+  #eligibility .frame--photo { align-self: stretch; height: auto; }
 }
 
-.glass-card:hover {
-  background: rgba(30, 41, 59, 0.7);
-  border-color: rgba(239, 68, 68, 0.3);
-  transform: translateY(-2px);
-  box-shadow: 0 12px 24px -8px rgba(220, 38, 38, 0.15);
+/* the FAQ's left column: the head, then the confirmation it talks about, down to the section's foot */
+.faq-side { display: flex; flex-direction: column; gap: var(--s-6); }
+.faq-side > .frame--lit { flex: 1 1 auto; --ratio: 0px; align-items: flex-start; padding: var(--s-6); }
+@media (min-width: 1024px) { #faq > .wrap > .grid { flex: 1 1 auto; grid-template-rows: minmax(0, 1fr); } }
+@media (max-width: 639px) { .faq-side > .frame--lit { padding: var(--s-4); } }
+.sp__code { font: 500 28px/1.1 var(--font-mono); letter-spacing: .02em; color: var(--u-ink); }
+.sp__rows { display: grid; gap: var(--s-2); margin: 0; }
+.sp__rows > div { display: flex; justify-content: space-between; gap: var(--s-4); font-size: 14px; }
+.sp__rows dt { color: var(--u-muted); }
+.sp__rows dd { margin: 0; color: var(--u-ink); font-variant-numeric: tabular-nums; }
+
+/* the split hero's photograph (the user's choice): on a computer the frame takes the photograph's own shape,
+   top-aligned with the h1, so the whole scene shows uncropped; on a tablet or phone it sits straight under the words at 4:3, as the phone showed it before */
+@media (min-width: 1024px) {
+  .hero--split .hero__media { height: auto; align-self: start; aspect-ratio: 1280 / 1058; }
+}
+@media (max-width: 1023px) {
+  /* Tailwind's own .grid utility (display: grid) outranks the kit's flex column here: restore it, words then photo */
+  .hero--split .hero-text.hero__grid { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; }
+  .hero--split .hero__media { flex: none; aspect-ratio: 4 / 3; min-height: 0; margin-top: var(--s-6); }
 }
 
-.glass-input {
-  background: rgba(15, 23, 42, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #f8fafc;
-  transition: all 0.2s ease;
+/* close-word: "CS Blood Drive" set from the content column's width (cqi), so it runs from the left content
+   edge to the right one at every width; capped by the screen's height (svh), so on a short laptop the
+   footer's three rows (heading, name, links) still fit one screen without the name landing on the links. */
+.closing__cta.close--word { container-type: inline-size; }
+.close__word {
+  font-size: min(15.45cqi, 24svh);
+  line-height: 1;
+  white-space: nowrap;
+}
+/* a short, wide screen (a 1280x720 or 1366x768 laptop): a tighter top and row gap give the name room to run
+   edge to edge without reaching the links */
+@media (min-width: 1024px) and (max-height: 820px) {
+  footer.closing.footer--statement { padding-top: calc(var(--nav) + var(--s-6)); }
+  footer.closing.footer--statement > .wrap { row-gap: var(--s-6); }
 }
 
-.glass-input:focus {
-  border-color: #ef4444;
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.25);
-}
+/* the eligibility photograph: square, so it stays under one screen's 708px */
+#eligibility .frame--photo { aspect-ratio: 1 / 1; overflow: hidden; }
+#eligibility .frame--photo > img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 40%; }
+@media (min-width: 640px) and (max-width: 1023px) { #eligibility .frame--photo { aspect-ratio: 16 / 9; } }
+@media (max-width: 639px) { #eligibility .frame--photo { aspect-ratio: auto; min-height: 427px; } }
 
-/* Custom Crimson Glow Button */
-.btn-primary {
-  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
-  color: white;
-  box-shadow: 0 4px 14px 0 rgba(220, 38, 38, 0.39);
-  transition: all 0.2s ease;
-}
+/* the slot picker drawn in the drives split (the product's own UI, live HTML on the lit ground) */
+#drives .frame--lit { --ratio: 0px; align-items: flex-start; padding: var(--s-7); }
+@media (min-width: 1024px) { #drives > .wrap > .grid { flex: 1 1 auto; grid-template-rows: minmax(0, 1fr); } #drives .frame--lit { align-self: stretch; } }
+.sp { width: min(100%, 440px); padding: var(--s-5); display: grid; gap: var(--s-4); font-family: var(--ui-font); }
+.sp__head { display: grid; gap: 2px; }
+.sp__title { font-size: 17px; font-weight: 500; color: var(--u-ink); }
+.sp__sub { font-size: 13px; color: var(--u-muted); }
+.sp__passed { justify-self: start; font-size: 12px; font-weight: 500; padding: 3px 10px; border-radius: 999px; color: var(--ok); background: color-mix(in oklab, var(--ok) 10%, var(--u-bg)); }
+.sp__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-2); }
+.sp__slot { display: grid; gap: 2px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--u-line); background: var(--u-bg); }
+.sp__slot b { font-weight: 500; font-size: 15px; color: var(--u-ink); font-variant-numeric: tabular-nums; }
+.sp__slot i { font-style: normal; font-size: 12px; color: var(--u-muted); }
+.sp__slot.is-full { opacity: .45; }
+.sp__slot.is-on { border-color: var(--p-action); box-shadow: 0 0 0 1px var(--p-action); }
+.sp__foot { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); padding-top: var(--s-3); border-top: 1px solid var(--u-line); }
+.sp__sel { font-size: 13px; color: var(--u-muted); font-variant-numeric: tabular-nums; }
+.sp__btn { background: var(--p-action); color: var(--p-action-ink); border-color: transparent; }
+@media (max-width: 639px) { #drives .frame--lit { padding: var(--s-4); } .sp { padding: var(--s-4); } .sp__slot:nth-child(n+7) { display: none; } }
 
-.btn-primary:hover {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-  box-shadow: 0 6px 20px rgba(220, 38, 38, 0.55);
-  transform: translateY(-1px);
-}
+/* ---------- App pages (donor, coordinator, staff, admin, auth) ---------- */
 
-.btn-secondary {
-  background: rgba(51, 65, 85, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #e2e8f0;
-  transition: all 0.2s ease;
-}
+.app-main { padding-top: calc(var(--nav) + var(--s-7)); padding-bottom: var(--s-9); min-height: 100svh; }
+.app-main > .wrap { display: block; }
 
-.btn-secondary:hover {
-  background: rgba(71, 85, 105, 0.8);
-  border-color: rgba(255, 255, 255, 0.2);
-  color: #ffffff;
-}
+@layer components {
+  .app-card { background: var(--app-card); border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--s-6); }
+  .app-card--flush { padding: 0; overflow: hidden; }
+  .app-title { font-family: var(--font-display); font-weight: var(--display-weight); letter-spacing: var(--display-tracking); font-size: var(--t-h2); line-height: 1.1; }
+  .app-h3 { font-family: var(--font-display); font-weight: 500; font-size: var(--t-card); line-height: 1.3; letter-spacing: -0.01em; }
+  .app-label { font-size: var(--t-label); font-weight: 500; color: var(--muted); }
+  .app-figure { font-family: var(--font-display); font-size: var(--t-stat); line-height: 1.1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 
-/* Blood Drop Animation */
-@keyframes pulseGlow {
-  0%, 100% { opacity: 0.8; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.05); }
-}
+  /* the kit's .grid (12 columns, every child across the row) shares its name with Tailwind's grid
+     utility: on the tool pages and in dialogs it is plain CSS grid again, laid out by utilities */
+  :is(.app-main, .modal) .grid { grid-template-columns: none; gap: 0; }
+  :is(.app-main, .modal) .grid > * { grid-column: auto; }
 
-.pulse-glow {
-  animation: pulseGlow 3s ease-in-out infinite;
-}
+  .field { display: grid; gap: var(--s-2); }
+  .field > label, .field__label { font-size: var(--t-small); font-weight: 500; color: var(--ink); }
+  .field__hint { font-size: var(--t-label); color: var(--muted); }
+  .input { width: 100%; height: 48px; padding: 0 var(--s-4); font: 400 16px/1.4 var(--font-text); color: var(--ink); background: var(--app-card); border: 1px solid var(--line-strong); border-radius: var(--r-sm); transition: border-color 140ms, box-shadow 140ms; }
+  textarea.input { height: auto; min-height: 112px; padding: var(--s-3) var(--s-4); }
+  .input:focus { outline: none; border-color: var(--action); box-shadow: 0 0 0 3px color-mix(in oklab, var(--action) 18%, transparent); }
+  .input[aria-invalid="true"] { border-color: var(--bad); }
 
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-::-webkit-scrollbar-track {
-  background: #090d16;
-}
-::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #dc2626;
+  .notice { display: flex; gap: var(--s-3); align-items: flex-start; padding: var(--s-4); border-radius: var(--r-md); font-size: var(--t-small); line-height: 1.5; border: 1px solid var(--line); background: var(--app-card); }
+  .notice--bad { border-color: color-mix(in oklab, var(--bad) 35%, transparent); background: color-mix(in oklab, var(--bad) 6%, var(--app-card)); color: color-mix(in oklab, var(--bad) 80%, var(--ink)); }
+  .notice--ok { border-color: color-mix(in oklab, var(--ok) 35%, transparent); background: color-mix(in oklab, var(--ok) 6%, var(--app-card)); color: color-mix(in oklab, var(--ok) 80%, var(--ink)); }
+  .notice--warn { border-color: color-mix(in oklab, var(--warn) 35%, transparent); background: color-mix(in oklab, var(--warn) 7%, var(--app-card)); color: color-mix(in oklab, var(--warn) 85%, var(--ink)); }
+
+  .chip { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; font-size: var(--t-label); font-weight: 500; white-space: nowrap; background: var(--surface); color: var(--ink); }
+  .chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .7; }
+  .chip--ok { background: color-mix(in oklab, var(--ok) 10%, var(--app-card)); color: var(--ok); }
+  .chip--warn { background: color-mix(in oklab, var(--warn) 12%, var(--app-card)); color: var(--warn); }
+  .chip--bad { background: color-mix(in oklab, var(--bad) 9%, var(--app-card)); color: var(--bad); }
+  .chip--plain::before { display: none; }
+
+  .tabs { display: inline-flex; gap: var(--s-1); padding: var(--s-1); border-radius: var(--r-md); background: var(--surface); }
+  .tabs__tab { height: 36px; padding: 0 var(--s-4); border-radius: var(--r-sm); font-size: var(--t-small); font-weight: 500; color: var(--muted); background: none; border: 0; cursor: pointer; }
+  .tabs__tab:is([aria-selected="true"], [aria-pressed="true"]) { background: var(--app-card); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
+
+  .table { width: 100%; border-collapse: collapse; font-size: var(--t-small); }
+  .table th { text-align: left; font-size: var(--t-label); font-weight: 500; color: var(--muted); padding: var(--s-3) var(--s-4); border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .table td { padding: var(--s-3) var(--s-4); border-bottom: 1px solid var(--line); vertical-align: middle; }
+  .table tr:last-child td { border-bottom: 0; }
+
+  .empty { display: grid; justify-items: center; gap: var(--s-2); padding: var(--s-8) var(--s-5); text-align: center; color: var(--muted); }
+  .empty__title { color: var(--ink); font-weight: 500; }
+  .spin { animation: spin 900ms linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .skeleton { border-radius: var(--r-md); background: linear-gradient(90deg, var(--surface), color-mix(in oklab, var(--surface) 50%, var(--app-card)), var(--surface)); background-size: 200% 100%; animation: shimmer 1.4s ease-in-out infinite; }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+
+  .modal { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: var(--s-4); background: color-mix(in oklab, var(--p-ink) 45%, transparent); overflow-y: auto; }
+  .modal__panel { position: relative; width: 100%; max-width: 560px; max-height: calc(100svh - 32px); overflow-y: auto; background: var(--app-card); border-radius: var(--r-lg); border: 1px solid var(--line); box-shadow: 0 24px 64px -24px color-mix(in oklab, var(--p-ink) 40%, transparent); }
+  .modal__panel--wide { max-width: 760px; }
+  .modal__head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-4); padding: var(--s-6) var(--s-6) var(--s-4); border-bottom: 1px solid var(--line); }
+  .modal__body { padding: var(--s-6); display: grid; gap: var(--s-5); }
+  .modal__foot { display: flex; justify-content: flex-end; gap: var(--s-3); padding: var(--s-4) var(--s-6) var(--s-6); flex-wrap: wrap; }
+  .icon-btn { display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: var(--r-sm); border: 0; background: none; color: var(--muted); cursor: pointer; position: relative; }
+  .icon-btn:hover { background: var(--surface); color: var(--ink); }
+  .badge { position: absolute; top: 6px; right: 6px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--action); color: var(--action-ink); font-size: 11px; font-weight: 500; line-height: 18px; text-align: center; }
+
+  .choice { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); padding: var(--s-4); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--app-card); }
+  .seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: var(--r-sm); overflow: hidden; }
+  .seg button { height: 40px; min-width: 64px; padding: 0 var(--s-4); border: 0; background: var(--app-card); font-size: var(--t-small); font-weight: 500; cursor: pointer; color: var(--muted); }
+  .seg button + button { border-left: 1px solid var(--line-strong); }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+
+  .slot { display: grid; gap: 2px; padding: var(--s-3) var(--s-4); border: 1px solid var(--line-strong); border-radius: var(--r-sm); background: var(--app-card); text-align: left; cursor: pointer; font: inherit; color: var(--ink); }
+  .slot:hover:not(:disabled) { border-color: var(--ink); }
+  .slot[aria-pressed="true"] { border-color: var(--action); box-shadow: 0 0 0 1px var(--action); }
+  .slot:disabled { cursor: not-allowed; opacity: .5; }
+
+  .bar-row { display: grid; grid-template-columns: 56px minmax(0, 1fr) 40px; align-items: center; gap: var(--s-3); font-size: var(--t-small); }
+  .bar-row__track { height: 8px; border-radius: 4px; background: var(--surface); overflow: hidden; }
+  .bar-row__fill { height: 100%; background: var(--ink); border-radius: 4px; }
 }

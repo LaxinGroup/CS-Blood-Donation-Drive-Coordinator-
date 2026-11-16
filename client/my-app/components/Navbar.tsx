@@ -1,267 +1,197 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { Bell, LogOut } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { api, NotificationItem } from '@/lib/api';
-import { 
-    Heart, 
-    Calendar, 
-    BarChart3, 
-    ClipboardCheck, 
-    ShieldCheck, 
-    Bell, 
-    LogOut, 
-    Menu,
-    X,
-} from 'lucide-react';
+import { api, NotificationItem, User } from '@/lib/api';
 import NotificationModal from './NotificationModal';
 
+const MAIN_ACTION = 'Book a donation slot';
+
+/* The dealt nav-mega: one fixed, opaque bar on the page's .wrap (system.md, Nav). system.js wires
+   the phone sheet, the menu toggle's state and Esc; nothing here duplicates that. */
 export default function Navbar() {
     const { user, isAuthenticated, logout } = useAuth();
     const pathname = usePathname();
+    const isLanding = pathname === '/';
     const [isNotifOpen, setIsNotifOpen] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
     const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-    const fetchNotifications = async () => {
+    const fetchNotifications = useCallback(() => {
         if (!isAuthenticated) return;
-        try {
-            const res = await api.getNotifications();
-            setUnreadCount(res.unread_count);
-            setNotifications(res.notifications);
-        } catch {
-            // Silently handle if unauthenticated
-        }
-    };
+        api.getNotifications()
+            .then((res) => {
+                setUnreadCount(res.unread_count);
+                setNotifications(res.notifications);
+            })
+            .catch(() => {
+                // signed out or the API is away: the bell simply shows no count
+            });
+    }, [isAuthenticated]);
 
     useEffect(() => {
-        if (isAuthenticated) {
-            fetchNotifications();
-            const interval = setInterval(fetchNotifications, 15000);
-            return () => clearInterval(interval);
-        }
-    }, [isAuthenticated]);
+        if (!isAuthenticated) return;
+        fetchNotifications();
+        const interval = setInterval(fetchNotifications, 15000);
+        return () => clearInterval(interval);
+    }, [isAuthenticated, fetchNotifications]);
 
     return (
         <>
-            <header className="sticky top-0 z-40 w-full border-b border-white/10 glass-panel backdrop-blur-xl">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex items-center justify-between h-16">
-                        <Link href="/" className="flex items-center space-x-3 group">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-red-600 via-rose-600 to-red-500 flex items-center justify-center shadow-lg shadow-red-600/30 group-hover:scale-105 transition-transform">
-                                <Heart className="w-5 h-5 text-white fill-white" />
-                            </div>
-                            <div className="flex flex-col">
-                                <span className="font-bold text-lg text-white tracking-tight leading-none group-hover:text-red-400 transition-colors">
-                                    Campus<span className="text-red-500">Blood</span>
-                                </span>
-                                <span className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold mt-0.5">
-                                    Drive Coordinator
-                                </span>
-                            </div>
-                        </Link>
-
-                        <nav className="hidden md:flex items-center space-x-1">
-                            <Link
-                                href="/"
-                                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                                    pathname === '/' ? 'text-white bg-white/10' : 'text-slate-300 hover:text-white hover:bg-white/5'
-                                }`}
-                            >
-                                Home
-                            </Link>
-
-                            {(!user || user.role === 'DONOR') && (
-                                <Link
-                                    href="/donor"
-                                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center space-x-1.5 ${
-                                        pathname.startsWith('/donor') ? 'text-red-400 bg-red-500/10 border border-red-500/20' : 'text-slate-300 hover:text-white hover:bg-white/5'
-                                    }`}
-                                >
-                                    <Calendar className="w-4 h-4" />
-                                    <span>Donor Portal</span>
-                                </Link>
-                            )}
-
-                            {(!user || user.role === 'COORDINATOR' || user.role === 'ADMIN') && (
-                                <Link
-                                    href="/coordinator"
-                                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center space-x-1.5 ${
-                                        pathname.startsWith('/coordinator') ? 'text-red-400 bg-red-500/10 border border-red-500/20' : 'text-slate-300 hover:text-white hover:bg-white/5'
-                                    }`}
-                                >
-                                    <BarChart3 className="w-4 h-4" />
-                                    <span>Coordinator</span>
-                                </Link>
-                            )}
-
-                            {(!user || user.role === 'STAFF' || user.role === 'ADMIN') && (
-                                <Link
-                                    href="/staff"
-                                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center space-x-1.5 ${
-                                        pathname.startsWith('/staff') ? 'text-red-400 bg-red-500/10 border border-red-500/20' : 'text-slate-300 hover:text-white hover:bg-white/5'
-                                    }`}
-                                >
-                                    <ClipboardCheck className="w-4 h-4" />
-                                    <span>Staff Console</span>
-                                </Link>
-                            )}
-
-                            {user?.role === 'ADMIN' && (
-                                <Link
-                                    href="/admin"
-                                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center space-x-1.5 ${
-                                        pathname.startsWith('/admin') ? 'text-amber-400 bg-amber-500/10 border border-amber-500/20' : 'text-slate-300 hover:text-white hover:bg-white/5'
-                                    }`}
-                                >
-                                    <ShieldCheck className="w-4 h-4" />
-                                    <span>Admin</span>
-                                </Link>
-                            )}
-                        </nav>
-
-                        <div className="hidden md:flex items-center space-x-3">
-                            {isAuthenticated && (
+            <header className="nav">
+                <div className="wrap nav__bar">
+                    <a className="skip-link" href="#top">Skip to content</a>
+                    <a className="nav__logo" href={isLanding ? '#top' : '/'}>
+                        <span className="mark mark--initial" aria-hidden="true">C</span>CS Blood Drive
+                    </a>
+                    <nav className="nav__links" aria-label="Main">
+                        {isLanding ? <LandingLinks /> : <RoleLinks user={user} pathname={pathname} />}
+                    </nav>
+                    <div className="nav__actions">
+                        {isAuthenticated && user ? (
+                            <>
                                 <button
+                                    type="button"
+                                    className="icon-btn"
                                     onClick={() => setIsNotifOpen(true)}
-                                    className="relative p-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
-                                    aria-label="Notifications"
+                                    aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
                                 >
-                                    <Bell className="w-5 h-5" />
-                                    {unreadCount > 0 && (
-                                        <span className="absolute top-1 right-1 w-4 h-4 bg-red-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center animate-pulse">
-                                            {unreadCount}
-                                        </span>
-                                    )}
+                                    <Bell className="w-5 h-5" aria-hidden="true" />
+                                    {unreadCount > 0 && <span className="badge">{unreadCount}</span>}
                                 </button>
-                            )}
-
-                            {isAuthenticated && user ? (
-                                <div className="flex items-center space-x-2 pl-2 border-l border-white/10">
-                                    <div className="flex flex-col text-right">
-                                        <span className="text-xs font-semibold text-slate-200">{user.full_name}</span>
-                                        <span className="text-[10px] text-red-400 font-mono">{user.role} {user.blood_group ? `• ${user.blood_group}` : ''}</span>
-                                    </div>
-                                    <button
-                                        onClick={logout}
-                                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                                        title="Log out"
-                                    >
-                                        <LogOut className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            ) : (
-                                <div className="flex items-center space-x-2">
-                                    <Link
-                                        href="/login"
-                                        className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-200 hover:text-white hover:bg-white/10 transition-colors"
-                                    >
-                                        Sign In
-                                    </Link>
-                                    <Link
-                                        href="/register"
-                                        className="px-3.5 py-1.5 rounded-lg text-xs font-semibold btn-primary"
-                                    >
-                                        Register
-                                    </Link>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="flex md:hidden items-center space-x-2">
-                            {isAuthenticated && (
-                                <button
-                                    onClick={() => setIsNotifOpen(true)}
-                                    className="relative p-2 text-slate-300"
-                                >
-                                    <Bell className="w-5 h-5" />
-                                    {unreadCount > 0 && (
-                                        <span className="absolute top-1 right-1 w-4 h-4 bg-red-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                                            {unreadCount}
-                                        </span>
-                                    )}
+                                <span className="hidden xl:grid text-right leading-tight">
+                                    <span className="text-sm font-medium">{user.full_name}</span>
+                                    <span className="text-[13px] text-muted">
+                                        {roleName(user.role)}
+                                        {user.blood_group ? ` · ${user.blood_group}` : ''}
+                                    </span>
+                                </span>
+                                <button type="button" className="icon-btn" onClick={logout} aria-label="Sign out">
+                                    <LogOut className="w-5 h-5" aria-hidden="true" />
                                 </button>
-                            )}
-                            <button
-                                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                                className="p-2 text-slate-300 hover:text-white"
-                            >
-                                {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-                            </button>
-                        </div>
+                            </>
+                        ) : (
+                            isLanding ? (
+                                <>
+                                    <Link className="nav__link" href="/login">Sign in</Link>
+                                    <a className="btn btn--primary" href="#drives">{MAIN_ACTION}</a>
+                                </>
+                            ) : pathname === '/login' || pathname === '/register' ? null : (
+                                <Link className="btn btn--primary" href="/login">Sign in</Link>
+                            )
+                        )}
                     </div>
+                    <button className="nav__toggle" type="button" aria-expanded="false" aria-label="Menu">
+                        <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+                            <path d="M2 5h14M2 13h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                        </svg>
+                    </button>
                 </div>
-
-                {isMobileMenuOpen && (
-                    <div className="md:hidden glass-panel border-b border-white/10 px-4 pt-2 pb-6 space-y-3">
-                        <Link
-                            href="/"
-                            onClick={() => setIsMobileMenuOpen(false)}
-                            className="block px-3 py-2 rounded-lg text-base font-medium text-slate-200 hover:bg-white/10"
-                        >
-                            Home
-                        </Link>
-                        <Link
-                            href="/donor"
-                            onClick={() => setIsMobileMenuOpen(false)}
-                            className="block px-3 py-2 rounded-lg text-base font-medium text-slate-200 hover:bg-white/10"
-                        >
-                            Donor Portal
-                        </Link>
-                        <Link
-                            href="/coordinator"
-                            onClick={() => setIsMobileMenuOpen(false)}
-                            className="block px-3 py-2 rounded-lg text-base font-medium text-slate-200 hover:bg-white/10"
-                        >
-                            Coordinator Dashboard
-                        </Link>
-                        <Link
-                            href="/staff"
-                            onClick={() => setIsMobileMenuOpen(false)}
-                            className="block px-3 py-2 rounded-lg text-base font-medium text-slate-200 hover:bg-white/10"
-                        >
-                            Staff Live Console
-                        </Link>
-                        {user?.role === 'ADMIN' && (
-                            <Link
-                                href="/admin"
-                                onClick={() => setIsMobileMenuOpen(false)}
-                                className="block px-3 py-2 rounded-lg text-base font-medium text-amber-400 hover:bg-white/10"
-                            >
-                                Admin Panel
-                            </Link>
-                        )}
-                        {!isAuthenticated && (
-                            <div className="pt-3 border-t border-white/10 flex gap-2">
-                                <Link
-                                    href="/login"
-                                    onClick={() => setIsMobileMenuOpen(false)}
-                                    className="flex-1 text-center px-3 py-2 rounded-lg text-sm font-semibold text-slate-200 hover:bg-white/10"
-                                >
-                                    Sign In
-                                </Link>
-                                <Link
-                                    href="/register"
-                                    onClick={() => setIsMobileMenuOpen(false)}
-                                    className="flex-1 text-center px-3 py-2 rounded-lg text-sm font-semibold btn-primary"
-                                >
-                                    Register
-                                </Link>
-                            </div>
-                        )}
-                    </div>
-                )}
             </header>
 
             <NotificationModal
                 isOpen={isNotifOpen}
-                onClose={() => { setIsNotifOpen(false); fetchNotifications(); }}
+                onClose={() => {
+                    setIsNotifOpen(false);
+                    fetchNotifications();
+                }}
                 notifications={notifications}
                 onRefresh={fetchNotifications}
             />
+        </>
+    );
+}
+
+function roleName(role: User['role']): string {
+    return { DONOR: 'Donor', COORDINATOR: 'Coordinator', STAFF: 'Medical staff', ADMIN: 'Admin' }[role];
+}
+
+const CHEV = (
+    <svg className="chev" viewBox="0 0 12 12" aria-hidden="true">
+        <path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+);
+
+/* The landing's words, each to its section; Booking opens the mega panel. */
+function LandingLinks() {
+    return (
+        <>
+            <div className="nav__item">
+                <a className="nav__link" href="#booking">Booking {CHEV}</a>
+                <div className="nav__menu">
+                    <div className="wrap grid">
+                        <div className="menu-col span-3">
+                            <p className="t-label">For donors</p>
+                            <a href="#drives">Upcoming drives<span>Pick a drive and a time</span></a>
+                            <a href="#eligibility">Eligibility<span>Who can give, and when</span></a>
+                            <a href="#booking">Your bookings<span>Codes, dates and history</span></a>
+                        </div>
+                        <div className="menu-col span-3">
+                            <p className="t-label">For drive teams</p>
+                            <a href="#teams">Drive setup<span>Slots made from your hours</span></a>
+                            <a href="#teams">Check-in desk<span>The queue by booking code</span></a>
+                            <a href="#teams">Turnout<span>Units and no-shows by hour</span></a>
+                        </div>
+                        <a className="menu-card span-3 start-10" href="#teams">
+                            <div className="panel">
+                                <div className="stage stage--fade-br">
+                                    <div className="at-corner">
+                                        <div className="ui ui-notify" data-ui="notify">
+                                            <ul className="ui-notify__list">
+                                                <li className="ui-note">
+                                                    <span className="ui-avatar ui-note__av" data-tone="2">O−</span>
+                                                    <span className="ui-note__text">
+                                                        <span className="ui-note__title">O− donors needed<time>now</time></span>
+                                                        <span className="ui-note__body">Science Block drive, open until 15:00</span>
+                                                    </span>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <span className="t-card">Urgent calls</span>
+                            <span className="t-small muted">Message the donors of one blood group</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div className="nav__item"><a className="nav__link" href="#drives">Drives</a></div>
+            <div className="nav__item"><a className="nav__link" href="#teams">Teams</a></div>
+            <div className="nav__item"><a className="nav__link" href="#eligibility">Eligibility</a></div>
+            <div className="nav__item"><a className="nav__link" href="#faq">Questions</a></div>
+        </>
+    );
+}
+
+/* On the tool pages: the portals this role may open, the current one marked. */
+function RoleLinks({ user, pathname }: { user: User | null; pathname: string }) {
+    const role = user?.role;
+    const items: { href: string; label: string; show: boolean }[] = [
+        { href: '/donor', label: 'Donor portal', show: !user || role === 'DONOR' },
+        { href: '/coordinator', label: 'Coordinator', show: !user || role === 'COORDINATOR' || role === 'ADMIN' },
+        { href: '/staff', label: 'Check-in desk', show: !user || role === 'STAFF' || role === 'ADMIN' },
+        { href: '/admin', label: 'Admin', show: role === 'ADMIN' },
+    ];
+    return (
+        <>
+            <div className="nav__item"><Link className="nav__link" href="/">Drives</Link></div>
+            {items
+                .filter((item) => item.show)
+                .map((item) => (
+                    <div className="nav__item" key={item.href}>
+                        <Link
+                            className="nav__link"
+                            href={item.href}
+                            aria-current={pathname.startsWith(item.href) ? 'page' : undefined}
+                        >
+                            {item.label}
+                        </Link>
+                    </div>
+                ))}
         </>
     );
 }

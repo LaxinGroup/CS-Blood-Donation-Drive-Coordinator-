@@ -1,0 +1,22 @@
+[
+  {
+    "check": "hero-lines",
+    "target": "section.hero h1",
+    "reason": "The page's own h1 (37 characters) takes two lines at 390; the stress fill to 40 failed with both dealt pairings, so the first pairing stays."
+  },
+  {
+    "check": "button-styles",
+    "target": "(one screen)",
+    "reason": "The odd ones out are date tiles, sidebar rows and slot tiles inside role=img UI mocks (kit calendar and window fragments, the slot picker drawing), not page buttons."
+  },
+  {
+    "check": "contrast",
+    "target": "div.span-2.start-7 > ul > li:nth-of-type(1) > a",
+    "reason": "At 390 the only thing over the footer Drives link is the Next.js dev-mode indicator badge, which next dev draws and production builds do not."
+  },
+  {
+    "check": "section-gaps",
+    "target": "main#top > section.hero.hero--split / section#booking",
+    "reason": "The client asked for the whole hero photograph uncropped on a computer; at its own 1.21:1 shape it ends above the fold, so the hero holds more air than the kit split hero (which cover-crops the photo to 628x716)."
+  }
+]

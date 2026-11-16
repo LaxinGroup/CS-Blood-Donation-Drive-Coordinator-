@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // the design-taste-frontend kit, vendored as plain files (never edited by hand)
+    "public/assets/**",
+    // the skill's working files (checker profiles, deal history)
+    ".taste-skill/**",
   ]),
 ]);
 
