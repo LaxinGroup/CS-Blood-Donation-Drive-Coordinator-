@@ -50,7 +50,10 @@ export default function Closing() {
                     <div className="footer__legal">
                         <span>&copy; 2026 CS Blood Donation Drive Coordinator</span>
                         <div className="socials" />
-                        <a className="credits" href="/credits">Photographs via Wikimedia Commons</a>
+                        <span className="flex flex-wrap gap-x-6">
+                            <a className="credits" href="/legal">Legal notice</a>
+                            <a className="credits" href="/credits">Photographs via Wikimedia Commons</a>
+                        </span>
                     </div>
                 </div>
             </div>

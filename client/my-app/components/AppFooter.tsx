@@ -6,7 +6,10 @@ export default function AppFooter() {
         <footer className="border-t border-line">
             <div className="wrap flex flex-wrap items-center justify-between gap-4 py-6 text-sm text-muted">
                 <span>&copy; {new Date().getFullYear()} CS Blood Donation Drive Coordinator</span>
-                <Link className="link" href="/">Upcoming drives</Link>
+                <div className="flex flex-wrap gap-4">
+                    <Link className="link" href="/legal">Legal notice</Link>
+                    <Link className="link" href="/">Upcoming drives</Link>
+                </div>
             </div>
         </footer>
     );
