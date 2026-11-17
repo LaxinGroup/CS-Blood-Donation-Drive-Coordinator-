@@ -182,6 +182,10 @@
   textarea.input { height: auto; min-height: 112px; padding: var(--s-3) var(--s-4); }
   .input:focus { outline: none; border-color: var(--action); box-shadow: 0 0 0 3px color-mix(in oklab, var(--action) 18%, transparent); }
   .input[aria-invalid="true"] { border-color: var(--bad); }
+  .password-field { position: relative; }
+  .password-field > .input { padding-right: 52px; }
+  /* Two classes so it beats .icon-btn's later `position: relative`; centred in the 48px input. */
+  .password-field > .password-field__toggle { position: absolute; top: 50%; right: 2px; transform: translateY(-50%); }
 
   .notice { display: flex; gap: var(--s-3); align-items: flex-start; padding: var(--s-4); border-radius: var(--r-md); font-size: var(--t-small); line-height: 1.5; border: 1px solid var(--line); background: var(--app-card); }
   .notice--bad { border-color: color-mix(in oklab, var(--bad) 35%, transparent); background: color-mix(in oklab, var(--bad) 6%, var(--app-card)); color: color-mix(in oklab, var(--bad) 80%, var(--ink)); }

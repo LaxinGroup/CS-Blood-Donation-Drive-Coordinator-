@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { RefreshCw } from 'lucide-react';
+import PasswordInput from '@/components/PasswordInput';
 
 export default function RegisterPage() {
     const { register } = useAuth();
@@ -88,16 +89,14 @@ export default function RegisterPage() {
 
                 <div className="field">
                     <label htmlFor="reg-password">Password</label>
-                    <input
+                    <PasswordInput
                         id="reg-password"
-                        className="input"
-                        type="password"
                         autoComplete="new-password"
                         required
                         minLength={6}
                         value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        aria-describedby="reg-password-hint"
+                        onChange={setPassword}
+                        describedBy="reg-password-hint"
                     />
                     <span id="reg-password-hint" className="field__hint">At least 6 characters</span>
                 </div>
