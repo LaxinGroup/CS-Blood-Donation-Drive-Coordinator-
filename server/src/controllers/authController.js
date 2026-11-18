@@ -1,7 +1,43 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const DataStore = require('../db/store');
 const { JWT_SECRET } = require('../middleware/auth');
+const { sendPasswordResetEmail } = require('../services/mailer');
+
+const RESET_TOKEN_TTL_MINUTES = 30;
+const MIN_PASSWORD_LENGTH = 6;
+const FORGOT_PASSWORD_MESSAGE = 'If an account exists for that email, a reset link has been sent.';
+const INVALID_RESET_MESSAGE = 'This reset link is invalid or has expired. Request a new one.';
+
+function hashToken(rawToken) {
+    return crypto.createHash('sha256').update(rawToken).digest('hex');
+}
+
+function buildResetUrl(rawToken) {
+    const base = (process.env.FRONTEND_URL || 'http://localhost:3000').replace(/\/+$/, '');
+    return `${base}/reset-password?token=${rawToken}`;
+}
+
+function isValidResetToken(token) {
+    return typeof token === 'string' && /^[a-f0-9]{64}$/.test(token);
+}
+
+async function issueResetLink(user, ip) {
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const expires_at = new Date(Date.now() + RESET_TOKEN_TTL_MINUTES * 60 * 1000);
+    await DataStore.createPasswordResetToken({ user_id: user.id, token_hash: hashToken(rawToken), expires_at });
+
+    // Not awaited: response time must not reveal whether the account exists
+    sendPasswordResetEmail({
+        to: user.email,
+        name: user.full_name,
+        resetUrl: buildResetUrl(rawToken),
+        expiresMinutes: RESET_TOKEN_TTL_MINUTES,
+    }).catch((err) => console.error('[mailer] Password reset email failed:', err.message));
+
+    await DataStore.logAudit({ user_id: user.id, action: 'PASSWORD_RESET_REQUESTED', details: {}, ip_address: ip });
+}
 
 const AuthController = {
     // Register New User (Donor by default, or with role)
@@ -129,6 +165,58 @@ const AuthController = {
                 message: 'Profile updated successfully.',
                 user: safeUser
             });
+        } catch (err) {
+            next(err);
+        }
+    },
+
+    // Forgot Password — same response whether or not the account exists
+    async forgotPassword(req, res, next) {
+        try {
+            const { email } = req.body;
+            if (typeof email !== 'string' || !email.trim()) {
+                return res.status(400).json({ success: false, message: 'Email is required.' });
+            }
+
+            const user = await DataStore.findUserByEmail(email.trim());
+            if (user) {
+                await issueResetLink(user, req.ip);
+            }
+
+            return res.status(200).json({ success: true, message: FORGOT_PASSWORD_MESSAGE });
+        } catch (err) {
+            next(err);
+        }
+    },
+
+    // Reset Password — consumes a one-time token, signs out every existing session
+    async resetPassword(req, res, next) {
+        try {
+            const { token, password } = req.body;
+            if (!isValidResetToken(token)) {
+                return res.status(400).json({ success: false, message: INVALID_RESET_MESSAGE });
+            }
+            if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`
+                });
+            }
+
+            const password_hash = await bcrypt.hash(password, 10);
+            const result = await DataStore.resetPasswordWithToken({ token_hash: hashToken(token), password_hash });
+            if (!result) {
+                return res.status(400).json({ success: false, message: INVALID_RESET_MESSAGE });
+            }
+
+            await DataStore.logAudit({
+                user_id: result.user_id,
+                action: 'PASSWORD_RESET_COMPLETED',
+                details: {},
+                ip_address: req.ip
+            });
+
+            return res.status(200).json({ success: true, message: 'Password updated. Please sign in.' });
         } catch (err) {
             next(err);
         }

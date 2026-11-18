@@ -90,7 +90,8 @@ The navigation bar includes an **Instant Demo Switcher** with pre-configured acc
 1. Connect repository and set root directory to `server`.
 2. Build command: `npm install`
 3. Start command: `node server.js`
-4. Environment variables: `DATABASE_URL`, `JWT_SECRET`, `FRONTEND_URL` (set to your Vercel frontend URL).
+4. Environment variables: `DATABASE_URL`, `JWT_SECRET`, `FRONTEND_URL` (set to your Vercel frontend URL; it is also the base of password reset links).
+5. Password reset email (Brevo): `BREVO_API_KEY`, `MAIL_FROM_EMAIL` (a sender verified in Brevo), `MAIL_FROM_NAME`. Brevo is called over HTTPS because Render free instances block outbound SMTP.
 
 ### Deploy Frontend to Vercel
 1. Connect repository and set root directory to `client/my-app`.

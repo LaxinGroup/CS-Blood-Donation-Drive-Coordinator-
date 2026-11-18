@@ -1,15 +1,17 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { Suspense, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { RefreshCw } from 'lucide-react';
 import PasswordInput from '@/components/PasswordInput';
 
-export default function LoginPage() {
+function LoginForm() {
     const { login } = useAuth();
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const passwordWasReset = searchParams.get('reset') === '1';
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -33,50 +35,62 @@ export default function LoginPage() {
     };
 
     return (
+        <form onSubmit={handleSubmit} className="app-card grid gap-5">
+            {passwordWasReset && !errorMessage && (
+                <div className="notice notice--ok" role="status">Password updated. Sign in with your new password.</div>
+            )}
+            {errorMessage && <div className="notice notice--bad" role="alert">{errorMessage}</div>}
+
+            <div className="field">
+                <label htmlFor="login-email">Email</label>
+                <input
+                    id="login-email"
+                    className="input"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                />
+            </div>
+
+            <div className="field">
+                <label htmlFor="login-password">Password</label>
+                <PasswordInput
+                    id="login-password"
+                    autoComplete="current-password"
+                    required
+                    value={password}
+                    onChange={setPassword}
+                />
+                <Link href="/forgot-password" className="link text-sm justify-self-end">Forgot password?</Link>
+            </div>
+
+            <button type="submit" disabled={isLoading} className="btn btn--primary w-full justify-center">
+                {isLoading ? (
+                    <>
+                        <RefreshCw className="w-4 h-4 spin" aria-hidden="true" />
+                        Signing in
+                    </>
+                ) : (
+                    'Sign in'
+                )}
+            </button>
+        </form>
+    );
+}
+
+export default function LoginPage() {
+    return (
         <div className="mx-auto max-w-md grid gap-8 py-8">
             <div className="grid gap-2">
                 <h1 className="app-title">Sign in</h1>
                 <p className="text-muted">Your bookings, donation history and drive tools.</p>
             </div>
 
-            <form onSubmit={handleSubmit} className="app-card grid gap-5">
-                {errorMessage && <div className="notice notice--bad" role="alert">{errorMessage}</div>}
-
-                <div className="field">
-                    <label htmlFor="login-email">Email</label>
-                    <input
-                        id="login-email"
-                        className="input"
-                        type="email"
-                        autoComplete="email"
-                        required
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                    />
-                </div>
-
-                <div className="field">
-                    <label htmlFor="login-password">Password</label>
-                    <PasswordInput
-                        id="login-password"
-                        autoComplete="current-password"
-                        required
-                        value={password}
-                        onChange={setPassword}
-                    />
-                </div>
-
-                <button type="submit" disabled={isLoading} className="btn btn--primary w-full justify-center">
-                    {isLoading ? (
-                        <>
-                            <RefreshCw className="w-4 h-4 spin" aria-hidden="true" />
-                            Signing in
-                        </>
-                    ) : (
-                        'Sign in'
-                    )}
-                </button>
-            </form>
+            <Suspense fallback={<div className="app-card" aria-busy="true" />}>
+                <LoginForm />
+            </Suspense>
 
             <p className="text-sm text-muted">
                 New here? <Link href="/register" className="link">Create a donor account</Link>

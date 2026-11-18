@@ -4,6 +4,14 @@ require('dotenv').config();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_blood_donation_coordinator_jwt_key_2026!';
 
+// A password reset signs out every device: reject tokens issued before the change.
+// JWT iat is whole seconds, so compare against the change time floored to seconds.
+function wasIssuedBeforePasswordChange(decoded, user) {
+    if (!user.password_changed_at || typeof decoded.iat !== 'number') return false;
+    const changedAtSeconds = Math.floor(new Date(user.password_changed_at).getTime() / 1000);
+    return decoded.iat < changedAtSeconds;
+}
+
 // Authenticate user via JWT Bearer Token or Cookie
 async function authenticate(req, res, next) {
     try {
@@ -34,6 +42,13 @@ async function authenticate(req, res, next) {
             return res.status(401).json({
                 success: false,
                 message: 'User account not found or deactivated.'
+            });
+        }
+
+        if (wasIssuedBeforePasswordChange(decoded, user)) {
+            return res.status(401).json({
+                success: false,
+                message: 'Your password was changed. Please sign in again.'
             });
         }
 

@@ -166,6 +166,20 @@ export const api = {
         return request<{ success: boolean; user: User }>('/auth/me');
     },
 
+    async forgotPassword(email: string) {
+        return request<{ success: boolean; message: string }>('/auth/forgot-password', {
+            method: 'POST',
+            body: JSON.stringify({ email }),
+        });
+    },
+
+    async resetPassword(payload: { token: string; password: string }) {
+        return request<{ success: boolean; message: string }>('/auth/reset-password', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        });
+    },
+
     async updateMe(payload: Partial<User>) {
         return request<{ success: boolean; user: User }>('/auth/me', {
             method: 'PUT',

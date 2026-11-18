@@ -21,6 +21,9 @@ const adminRoutes = require('./src/routes/adminRoutes');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Render sits behind one proxy hop: needed so rate limiting sees the real client IP
+app.set('trust proxy', 1);
+
 // Security & Parsing Middlewares
 app.use(createCorsMiddleware());
 app.use(express.json({ limit: '10mb' }));

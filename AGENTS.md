@@ -83,6 +83,11 @@ Required before saving:
 - `POST /api/appointments` — donor booking, protected by the transactional lock; must return
   409 Conflict to the losing request when two users race for the last slot.
 
+- `POST /api/auth/forgot-password` — public, rate limited (5 / 15 min / IP); always 200 with a generic
+  message (no account enumeration); emails a one-time 30-minute reset link via Brevo.
+- `POST /api/auth/reset-password` — public, rate limited; consumes the token under `FOR UPDATE`, sets
+  `password_changed_at`, which invalidates every JWT issued before it (signs out all devices).
+
 Pin any further endpoint exactly as each sprint implements it and keep this table current.
 
 ## 7. Security

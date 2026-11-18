@@ -29,10 +29,54 @@ const DataStore = {
     async findUserById(id) {
         if (!isDbConnected()) return null;
         const res = await query(
-            'SELECT id, full_name, email, role, last_donation_date, created_at FROM users WHERE id = $1',
+            'SELECT id, full_name, email, role, last_donation_date, created_at, password_changed_at FROM users WHERE id = $1',
             [id]
         );
         return res.rows[0] || null;
+    },
+
+    // PASSWORD RESET — only the SHA-256 hash of a token is ever stored
+    async createPasswordResetToken({ user_id, token_hash, expires_at }) {
+        requireDb();
+        await executeTransaction(async (client) => {
+            // Only the newest link should work: drop any earlier tokens for this user
+            await client.query('DELETE FROM password_reset_tokens WHERE user_id = $1', [user_id]);
+            await client.query(
+                'INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)',
+                [user_id, token_hash, expires_at]
+            );
+        });
+    },
+
+    // Consumes a token exactly once. FOR UPDATE makes a concurrent second submit wait,
+    // then see used_at set and fail. Returns null when the token is invalid/expired/used.
+    async resetPasswordWithToken({ token_hash, password_hash }) {
+        requireDb();
+        return await executeTransaction(async (client) => {
+            const tokenRes = await client.query(
+                `SELECT t.id, t.user_id, t.expires_at, t.used_at, u.email
+                 FROM password_reset_tokens t
+                 JOIN users u ON u.id = t.user_id
+                 WHERE t.token_hash = $1
+                 FOR UPDATE OF t`,
+                [token_hash]
+            );
+            const token = tokenRes.rows[0];
+            if (!token || token.used_at || new Date(token.expires_at) < new Date()) {
+                return null;
+            }
+
+            await client.query(
+                'UPDATE users SET password_hash = $1, password_changed_at = NOW() WHERE id = $2',
+                [password_hash, token.user_id]
+            );
+            await client.query('UPDATE password_reset_tokens SET used_at = NOW() WHERE id = $1', [token.id]);
+            await client.query(
+                'DELETE FROM password_reset_tokens WHERE user_id = $1 AND id <> $2',
+                [token.user_id, token.id]
+            );
+            return { user_id: token.user_id, email: token.email };
+        });
     },
 
     async createUser({ full_name, email, password_hash, role = 'DONOR' }) {
