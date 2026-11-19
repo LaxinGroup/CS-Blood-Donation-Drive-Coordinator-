@@ -72,17 +72,28 @@ async function runTests() {
 
         // Test 2: Authentication & RBAC (Sprint 2)
         console.log('\n--- Phase 1: Authentication & RBAC ---');
-        const loginDonor = await request('POST', '/auth/login', { email: 'donor@campus.edu', password: 'password123' });
-        assert(loginDonor.status === 200 && loginDonor.body.token, 'Donor login succeeds and returns JWT');
-        const donorToken = loginDonor.body.token;
+        // Sign-in is handled by Neon Auth, so the API only accepts Neon-issued JWTs.
+        const noTokenRes = await request('GET', '/auth/me');
+        assert(noTokenRes.status === 401, 'Request without a token is rejected (401)');
+        const badTokenRes = await request('GET', '/auth/me', null, { 'Authorization': 'Bearer not.a.jwt' });
+        assert(badTokenRes.status === 401, 'Forged/garbage token is rejected (401)');
 
-        const loginCoord = await request('POST', '/auth/login', { email: 'coordinator@campus.edu', password: 'password123' });
-        assert(loginCoord.status === 200 && loginCoord.body.token, 'Coordinator login succeeds');
-        const coordToken = loginCoord.body.token;
+        // Neon JWTs (15-minute lifetime) for verified test users whose users rows have the matching role.
+        // Get one in the browser console while signed in: (await (await fetch('/api/auth/token')).json()).token
+        const donorToken = process.env.TEST_DONOR_TOKEN;
+        const donor2Token = process.env.TEST_DONOR2_TOKEN;
+        const coordToken = process.env.TEST_COORDINATOR_TOKEN;
+        const staffToken = process.env.TEST_STAFF_TOKEN;
+        if (!donorToken || !donor2Token || !coordToken || !staffToken) {
+            console.log('  ⏭️  SKIPPED remaining phases: set TEST_DONOR_TOKEN, TEST_DONOR2_TOKEN,');
+            console.log('      TEST_COORDINATOR_TOKEN and TEST_STAFF_TOKEN (Neon Auth JWTs) to run them.');
+            return;
+        }
 
-        const loginStaff = await request('POST', '/auth/login', { email: 'staff@campus.edu', password: 'password123' });
-        assert(loginStaff.status === 200 && loginStaff.body.token, 'Medical staff login succeeds');
-        const staffToken = loginStaff.body.token;
+        for (const [label, token] of [['Donor', donorToken], ['Second donor', donor2Token], ['Coordinator', coordToken], ['Staff', staffToken]]) {
+            const profileRes = await request('POST', '/auth/profile', {}, { 'Authorization': `Bearer ${token}` });
+            assert(profileRes.status === 200 || profileRes.status === 201, `${label} Neon token verified and profile linked`);
+        }
 
         // RBAC Forbidden Test
         const unauthDriveCreate = await request('POST', '/drives', { title: 'Unauthorized' }, { 'Authorization': `Bearer ${donorToken}` });
@@ -109,15 +120,6 @@ async function runTests() {
 
         // Test 4: Concurrency & Transactional Slot Reservation (Sprint 4)
         console.log('\n--- Phase 2: Concurrency & Slot Booking (SELECT FOR UPDATE) ---');
-        // Register second test donor
-        const regDonor2 = await request('POST', '/auth/register', {
-            full_name: 'Second Concurrent Donor',
-            email: `concurrent_${Date.now()}@campus.edu`,
-            password: 'password123',
-            blood_group: 'O+'
-        });
-        const donor2Token = regDonor2.body.token;
-
         // Simulate 2 parallel bookings competing for the 1 remaining slot (capacity = 1)
         const [res1, res2] = await Promise.all([
             request('POST', '/appointments', { drive_id: driveData.id, slot_id: testSlot.id }, { 'Authorization': `Bearer ${donorToken}` }),

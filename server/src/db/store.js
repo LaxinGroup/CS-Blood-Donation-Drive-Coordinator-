@@ -1,6 +1,10 @@
 const { query, executeTransaction, isDbConnected } = require('../config/db');
-const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+
+const USER_COLUMNS = 'id, auth_user_id, full_name, email, role, last_donation_date, created_at';
+// Roles a person may pick for themselves at sign-up. ADMIN is granted only by an admin.
+const SELF_ASSIGNABLE_ROLES = ['DONOR', 'COORDINATOR', 'STAFF'];
+const UNIQUE_VIOLATION = '23505';
 
 function dbUnavailableError() {
     const err = new Error('Database unavailable. Please try again later.');
@@ -14,84 +18,91 @@ function requireDb() {
     }
 }
 
+function emailLinkedElsewhereError() {
+    const err = new Error('This email is already linked to a different sign-in. Contact an administrator.');
+    err.statusCode = 409;
+    return err;
+}
+
+// Runs inside a transaction. Returns the row already linked to this identity, links an existing
+// unlinked row with the same (verified) email, or creates a new row.
+async function linkOrCreateInTransaction(client, { sub, email, name, requestedRole }) {
+    const bySub = await client.query(`SELECT ${USER_COLUMNS} FROM users WHERE auth_user_id = $1`, [sub]);
+    if (bySub.rows[0]) return { user: bySub.rows[0], linked: false, created: false };
+
+    // FOR UPDATE: two first requests for the same email are serialized here
+    const byEmail = await client.query(
+        `SELECT ${USER_COLUMNS} FROM users WHERE LOWER(email) = LOWER($1) FOR UPDATE`,
+        [email]
+    );
+    const existing = byEmail.rows[0];
+    if (existing) {
+        if (existing.auth_user_id && existing.auth_user_id !== sub) throw emailLinkedElsewhereError();
+        const res = await client.query(
+            `UPDATE users SET auth_user_id = $1 WHERE id = $2 RETURNING ${USER_COLUMNS}`,
+            [sub, existing.id]
+        );
+        return { user: res.rows[0], linked: true, created: false };
+    }
+
+    const role = SELF_ASSIGNABLE_ROLES.includes(requestedRole) ? requestedRole : 'DONOR';
+    const res = await client.query(
+        `INSERT INTO users (auth_user_id, full_name, email, role)
+         VALUES ($1, $2, $3, $4)
+         RETURNING ${USER_COLUMNS}`,
+        [sub, name || email, email, role]
+    );
+    return { user: res.rows[0], linked: false, created: true };
+}
+
 // DATA ACCESS LAYER — PostgreSQL only (no demo / in-memory seed)
 const DataStore = {
     // USERS
     async findUserByEmail(email) {
         if (!isDbConnected()) return null;
-        const res = await query(
-            'SELECT id, full_name, email, password_hash, role, last_donation_date, created_at FROM users WHERE LOWER(email) = LOWER($1)',
-            [email]
-        );
+        const res = await query(`SELECT ${USER_COLUMNS} FROM users WHERE LOWER(email) = LOWER($1)`, [email]);
         return res.rows[0] || null;
     },
 
     async findUserById(id) {
         if (!isDbConnected()) return null;
-        const res = await query(
-            'SELECT id, full_name, email, role, last_donation_date, created_at, password_changed_at FROM users WHERE id = $1',
-            [id]
-        );
+        const res = await query(`SELECT ${USER_COLUMNS} FROM users WHERE id = $1`, [id]);
         return res.rows[0] || null;
     },
 
-    // PASSWORD RESET — only the SHA-256 hash of a token is ever stored
-    async createPasswordResetToken({ user_id, token_hash, expires_at }) {
+    async findUserByAuthId(authUserId) {
         requireDb();
-        await executeTransaction(async (client) => {
-            // Only the newest link should work: drop any earlier tokens for this user
-            await client.query('DELETE FROM password_reset_tokens WHERE user_id = $1', [user_id]);
-            await client.query(
-                'INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)',
-                [user_id, token_hash, expires_at]
-            );
-        });
+        const res = await query(`SELECT ${USER_COLUMNS} FROM users WHERE auth_user_id = $1`, [authUserId]);
+        return res.rows[0] || null;
     },
 
-    // Consumes a token exactly once. FOR UPDATE makes a concurrent second submit wait,
-    // then see used_at set and fail. Returns null when the token is invalid/expired/used.
-    async resetPasswordWithToken({ token_hash, password_hash }) {
+    // Called after a verified Neon Auth sign-in. Concurrency: FOR UPDATE serializes linking; if two
+    // requests race to INSERT, the unique email/auth_user_id index rejects one, and the retry then
+    // finds the winner's row. One identity never ends up with two rows.
+    async linkOrCreateUserForIdentity(identity) {
         requireDb();
-        return await executeTransaction(async (client) => {
-            const tokenRes = await client.query(
-                `SELECT t.id, t.user_id, t.expires_at, t.used_at, u.email
-                 FROM password_reset_tokens t
-                 JOIN users u ON u.id = t.user_id
-                 WHERE t.token_hash = $1
-                 FOR UPDATE OF t`,
-                [token_hash]
-            );
-            const token = tokenRes.rows[0];
-            if (!token || token.used_at || new Date(token.expires_at) < new Date()) {
-                return null;
-            }
-
-            await client.query(
-                'UPDATE users SET password_hash = $1, password_changed_at = NOW() WHERE id = $2',
-                [password_hash, token.user_id]
-            );
-            await client.query('UPDATE password_reset_tokens SET used_at = NOW() WHERE id = $1', [token.id]);
-            await client.query(
-                'DELETE FROM password_reset_tokens WHERE user_id = $1 AND id <> $2',
-                [token.user_id, token.id]
-            );
-            return { user_id: token.user_id, email: token.email };
-        });
+        try {
+            return await executeTransaction((client) => linkOrCreateInTransaction(client, identity));
+        } catch (err) {
+            if (err.code !== UNIQUE_VIOLATION) throw err;
+            return await executeTransaction((client) => linkOrCreateInTransaction(client, identity));
+        }
     },
 
-    async createUser({ full_name, email, password_hash, role = 'DONOR' }) {
+    // Walk-ins have no sign-in yet; they link later by signing up with this email
+    async createUser({ full_name, email, role = 'DONOR' }) {
         requireDb();
         const res = await query(
-            `INSERT INTO users (full_name, email, password_hash, role)
-             VALUES ($1, $2, $3, $4)
-             RETURNING id, full_name, email, role, last_donation_date, created_at`,
-            [full_name, email, password_hash, role]
+            `INSERT INTO users (full_name, email, role)
+             VALUES ($1, $2, $3)
+             RETURNING ${USER_COLUMNS}`,
+            [full_name, email, role]
         );
         return res.rows[0];
     },
 
     async updateUser(id, updates) {
-        const allowedColumns = ['full_name', 'password_hash', 'role', 'last_donation_date'];
+        const allowedColumns = ['full_name', 'role', 'last_donation_date'];
         const validUpdates = {};
         for (const [key, val] of Object.entries(updates)) {
             if (allowedColumns.includes(key)) {
@@ -113,7 +124,7 @@ const DataStore = {
         }
         values.push(id);
         const res = await query(
-            `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx} RETURNING id, full_name, email, role, last_donation_date, created_at`,
+            `UPDATE users SET ${fields.join(', ')} WHERE id = $${idx} RETURNING ${USER_COLUMNS}`,
             values
         );
         return res.rows[0] || null;
@@ -551,13 +562,7 @@ const DataStore = {
         requireDb();
         let user = await this.findUserByEmail(email);
         if (!user) {
-            const tempHash = bcrypt.hashSync('walkin123', 10);
-            user = await this.createUser({
-                full_name,
-                email,
-                password_hash: tempHash,
-                role: 'DONOR',
-            });
+            user = await this.createUser({ full_name, email, role: 'DONOR' });
         }
 
         let targetSlotId = slot_id;

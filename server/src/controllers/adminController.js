@@ -37,7 +37,7 @@ const AdminController = {
                 ip_address: req.ip
             });
 
-            const { password_hash, ...safeUser } = updated;
+            const safeUser = updated;
             return res.status(200).json({
                 success: true,
                 message: `User role updated to ${role}.`,

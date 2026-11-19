@@ -1,54 +1,93 @@
-const jwt = require('jsonwebtoken');
+const { createRemoteJWKSet, jwtVerify } = require('jose');
 const DataStore = require('../db/store');
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 
-const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_blood_donation_coordinator_jwt_key_2026!';
+// Neon Auth (Managed Better Auth) issues EdDSA JWTs; iss and aud are both the Auth URL's origin.
+let verifierConfig = null;
 
-// A password reset signs out every device: reject tokens issued before the change.
-// JWT iat is whole seconds, so compare against the change time floored to seconds.
-function wasIssuedBeforePasswordChange(decoded, user) {
-    if (!user.password_changed_at || typeof decoded.iat !== 'number') return false;
-    const changedAtSeconds = Math.floor(new Date(user.password_changed_at).getTime() / 1000);
-    return decoded.iat < changedAtSeconds;
+function getVerifierConfig() {
+    if (verifierConfig) return verifierConfig;
+    const baseUrl = process.env.NEON_AUTH_BASE_URL;
+    if (!baseUrl) {
+        throw new Error('NEON_AUTH_BASE_URL is not configured.');
+    }
+    const jwksUrl = process.env.NEON_AUTH_JWKS_URL || `${baseUrl.replace(/\/+$/, '')}/.well-known/jwks.json`;
+    const origin = new URL(baseUrl).origin;
+    // Keys are cached and refetched automatically when an unknown key id appears
+    verifierConfig = { jwks: createRemoteJWKSet(new URL(jwksUrl)), issuer: origin, audience: origin };
+    return verifierConfig;
 }
 
-// Authenticate user via JWT Bearer Token or Cookie
-async function authenticate(req, res, next) {
+async function verifyNeonToken(token) {
+    const { jwks, issuer, audience } = getVerifierConfig();
+    const { payload } = await jwtVerify(token, jwks, { algorithms: ['EdDSA'], issuer, audience });
+    return payload;
+}
+
+function readBearerToken(req) {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        return authHeader.slice('Bearer '.length).trim() || null;
+    }
+    return null;
+}
+
+function unauthorized(res, message) {
+    return res.status(401).json({ success: false, message });
+}
+
+// Verifies the Neon Auth token only. Sets req.identity. Used by the profile-sync route,
+// where the app's users row may not exist yet.
+async function requireIdentity(req, res, next) {
+    const token = readBearerToken(req);
+    if (!token) {
+        return unauthorized(res, 'Authentication required. No token provided.');
+    }
+
+    let claims;
     try {
-        let token = null;
-
-        // 1. Check Authorization header
-        const authHeader = req.headers.authorization;
-        if (authHeader && authHeader.startsWith('Bearer ')) {
-            token = authHeader.split(' ')[1];
+        claims = await verifyNeonToken(token);
+    } catch (err) {
+        if (err.code === 'ERR_JWT_EXPIRED') {
+            return unauthorized(res, 'Session expired. Please sign in again.');
         }
-
-        // 2. Check cookies if available
-        if (!token && req.cookies && req.cookies.token) {
-            token = req.cookies.token;
+        if (err.message === 'NEON_AUTH_BASE_URL is not configured.') {
+            return next(err);
         }
+        // Reason only (e.g. ERR_JWT_CLAIM_VALIDATION_FAILED "iss"), never the token itself
+        console.warn(`[auth] Token rejected: ${err.code || err.name}${err.claim ? ` (claim: ${err.claim})` : ''}`);
+        return unauthorized(res, 'Invalid authentication token.');
+    }
 
-        if (!token) {
-            return res.status(401).json({
-                success: false,
-                message: 'Authentication required. No token provided.'
-            });
-        }
+    if (typeof claims.sub !== 'string' || typeof claims.email !== 'string') {
+        return unauthorized(res, 'Invalid authentication token.');
+    }
+    // Linking accounts by email is only safe for verified emails; fail closed otherwise
+    if (claims.emailVerified !== true) {
+        return res.status(403).json({
+            success: false,
+            code: 'EMAIL_NOT_VERIFIED',
+            message: 'Verify your email address to continue.'
+        });
+    }
 
-        const decoded = jwt.verify(token, JWT_SECRET);
-        const user = await DataStore.findUserById(decoded.id);
+    req.identity = {
+        sub: claims.sub,
+        email: claims.email,
+        name: typeof claims.name === 'string' ? claims.name : null
+    };
+    return next();
+}
 
+// Verified identity + the app's users row (role lives there, not in the Neon token)
+async function loadAppUser(req, res, next) {
+    try {
+        const user = await DataStore.findUserByAuthId(req.identity.sub);
         if (!user) {
-            return res.status(401).json({
+            return res.status(403).json({
                 success: false,
-                message: 'User account not found or deactivated.'
-            });
-        }
-
-        if (wasIssuedBeforePasswordChange(decoded, user)) {
-            return res.status(401).json({
-                success: false,
-                message: 'Your password was changed. Please sign in again.'
+                code: 'PROFILE_REQUIRED',
+                message: 'Finish setting up your account to continue.'
             });
         }
 
@@ -59,14 +98,17 @@ async function authenticate(req, res, next) {
             role: user.role,
             blood_group: user.blood_group
         };
-
-        next();
+        return next();
     } catch (err) {
-        if (err.name === 'TokenExpiredError') {
-            return res.status(401).json({ success: false, message: 'Session expired. Please log in again.' });
-        }
-        return res.status(401).json({ success: false, message: 'Invalid authentication token.' });
+        return next(err);
     }
+}
+
+function authenticate(req, res, next) {
+    return requireIdentity(req, res, (err) => {
+        if (err) return next(err);
+        return loadAppUser(req, res, next);
+    });
 }
 
 // Role Authorization Middleware (RBAC)
@@ -91,6 +133,6 @@ function authorizeRole(allowedRoles = []) {
 
 module.exports = {
     authenticate,
-    authorizeRole,
-    JWT_SECRET
+    requireIdentity,
+    authorizeRole
 };

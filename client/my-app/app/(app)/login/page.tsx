@@ -3,12 +3,13 @@
 import React, { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext';
+import { AuthFlowError, EMAIL_NOT_VERIFIED, useAuth } from '@/context/AuthContext';
 import { RefreshCw } from 'lucide-react';
 import PasswordInput from '@/components/PasswordInput';
+import VerifyEmailStep from '@/components/VerifyEmailStep';
 
 function LoginForm() {
-    const { login } = useAuth();
+    const { login, sendVerificationCode } = useAuth();
     const router = useRouter();
     const searchParams = useSearchParams();
     const passwordWasReset = searchParams.get('reset') === '1';
@@ -17,6 +18,16 @@ function LoginForm() {
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const [awaitingCode, setAwaitingCode] = useState(false);
+
+    const startVerification = async () => {
+        try {
+            await sendVerificationCode(email);
+        } catch {
+            // The step itself offers "Send a new code" if this one failed
+        }
+        setAwaitingCode(true);
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -27,12 +38,26 @@ function LoginForm() {
             await login(email, password);
             router.push('/');
         } catch (err: unknown) {
-            const error = err as { message?: string };
-            setErrorMessage(error.message || 'Invalid email or password.');
+            if (err instanceof AuthFlowError && err.code === EMAIL_NOT_VERIFIED) {
+                await startVerification();
+            } else {
+                setErrorMessage(err instanceof Error && err.message ? err.message : 'Invalid email or password.');
+            }
         } finally {
             setIsLoading(false);
         }
     };
+
+    if (awaitingCode) {
+        return (
+            <VerifyEmailStep
+                email={email}
+                password={password}
+                intro="Your email isn't verified yet. Enter the code we just emailed you to finish signing in."
+                onVerified={() => router.push('/')}
+            />
+        );
+    }
 
     return (
         <form onSubmit={handleSubmit} className="app-card grid gap-5">
@@ -86,6 +111,11 @@ export default function LoginPage() {
             <div className="grid gap-2">
                 <h1 className="app-title">Sign in</h1>
                 <p className="text-muted">Your bookings, donation history and drive tools.</p>
+            </div>
+
+            <div className="notice notice--warn" role="note">
+                We moved to a new sign-in. Registered before? <Link href="/register" className="link">Create your account again</Link> with
+                the same email: your bookings and history carry over once you verify it.
             </div>
 
             <Suspense fallback={<div className="app-card" aria-busy="true" />}>

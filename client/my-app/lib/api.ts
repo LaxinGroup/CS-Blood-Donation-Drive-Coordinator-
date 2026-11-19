@@ -1,4 +1,5 @@
 // Centralized API Client for CS Blood Donation Drive Coordinator
+import { authClient } from '@/lib/auth/client';
 
 function normalizeApiBaseUrl(baseUrl: string): string {
     const trimmedBaseUrl = baseUrl.trim().replace(/\/+$/, '');
@@ -116,31 +117,89 @@ export interface SystemOverview {
 }
 
 // Request helper
-async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+/** Error thrown for non-2xx API responses. `code` is set for auth states the UI reacts to. */
+export class ApiError extends Error {
+    constructor(message: string, public readonly status: number, public readonly code?: string) {
+        super(message);
+        this.name = 'ApiError';
+    }
+}
 
+// Neon Auth JWTs live 15 minutes. Reuse one until shortly before it expires.
+const TOKEN_REFRESH_MARGIN_SECONDS = 60;
+let cachedToken: { value: string; expiresAt: number } | null = null;
+
+function readTokenExpiry(token: string): number {
+    try {
+        const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))) as { exp?: number };
+        return typeof payload.exp === 'number' ? payload.exp : 0;
+    } catch {
+        return 0;
+    }
+}
+
+/** A Neon JWT (three dot-separated parts) that isn't about to expire. Opaque session tokens fail this. */
+function usableJwt(token: string | null | undefined): { value: string; expiresAt: number } | null {
+    if (!token || token.split('.').length !== 3) return null;
+    const expiresAt = readTokenExpiry(token);
+    return expiresAt - TOKEN_REFRESH_MARGIN_SECONDS > Date.now() / 1000 ? { value: token, expiresAt } : null;
+}
+
+export function clearAuthToken(): void {
+    cachedToken = null;
+}
+
+// Neon delivers the JWT on get-session responses (`set-auth-jwt` header, which the SDK copies into
+// session.token). Note: `authClient.token()` is routed to the SDK's session cache and returns the
+// session object, not { token }, so it can't be used here.
+async function getAuthToken(): Promise<string | null> {
+    if (typeof window === 'undefined') return null;
+    if (usableJwt(cachedToken?.value)) return cachedToken!.value;
+
+    const { data: session } = await authClient.getSession();
+    cachedToken = usableJwt(session?.session?.token);
+    if (cachedToken || !session?.user) return cachedToken?.value ?? null;
+
+    // Signed in but the cached session has no fresh JWT: ask Neon directly, bypassing the
+    // SDK's in-browser cache (X-Force-Fetch) and the proxy's session cookie cache.
+    const { data: fresh } = await authClient.getSession({
+        query: { disableCookieCache: true },
+        fetchOptions: { headers: { 'X-Force-Fetch': 'true' } },
+    });
+    cachedToken = usableJwt(fresh?.session?.token);
+    return cachedToken?.value ?? null;
+}
+
+async function send(url: string, options: RequestInit, token: string | null): Promise<Response> {
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         ...(options.headers as Record<string, string>),
     };
-
     if (token) {
         headers['Authorization'] = `Bearer ${token}`;
     }
+    try {
+        return await fetch(url, { ...options, headers });
+    } catch {
+        // fetch only rejects when the server can't be reached at all (down, wrong URL, CORS)
+        throw new ApiError('Cannot reach the server right now. Please try again in a moment.', 0, 'NETWORK_ERROR');
+    }
+}
 
+async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 
-    const response = await fetch(url, {
-        ...options,
-        headers,
-    });
+    let response = await send(url, options, await getAuthToken());
+    if (response.status === 401 && cachedToken) {
+        // Cached token was rejected (e.g. expired early): fetch a fresh one and retry once
+        clearAuthToken();
+        response = await send(url, options, await getAuthToken());
+    }
 
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-        const error = new Error(data.message || `Request failed with status ${response.status}`);
-        (error as unknown as { status: number }).status = response.status;
-        throw error;
+        throw new ApiError(data.message || `Request failed with status ${response.status}`, response.status, data.code);
     }
 
     return data;
@@ -148,36 +207,16 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
 export const api = {
     // Auth
-    async login(credentials: { email: string; password: string }) {
-        return request<{ success: boolean; token: string; user: User }>('/auth/login', {
+    // Links the signed-in Neon Auth identity to the app's user row (or creates it). Idempotent.
+    async syncProfile(role?: User['role']) {
+        return request<{ success: boolean; linked: boolean; user: User }>('/auth/profile', {
             method: 'POST',
-            body: JSON.stringify(credentials),
-        });
-    },
-
-    async register(payload: { full_name: string; email: string; password: string; role?: string; blood_group?: string; phone?: string; date_of_birth?: string }) {
-        return request<{ success: boolean; token: string; user: User }>('/auth/register', {
-            method: 'POST',
-            body: JSON.stringify(payload),
+            body: JSON.stringify(role ? { role } : {}),
         });
     },
 
     async getMe() {
         return request<{ success: boolean; user: User }>('/auth/me');
-    },
-
-    async forgotPassword(email: string) {
-        return request<{ success: boolean; message: string }>('/auth/forgot-password', {
-            method: 'POST',
-            body: JSON.stringify({ email }),
-        });
-    },
-
-    async resetPassword(payload: { token: string; password: string }) {
-        return request<{ success: boolean; message: string }>('/auth/reset-password', {
-            method: 'POST',
-            body: JSON.stringify(payload),
-        });
     },
 
     async updateMe(payload: Partial<User>) {

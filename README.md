@@ -34,7 +34,8 @@
 ## 🛠️ Technology Stack & Architecture
 
 - **Frontend (`client/my-app`):** Next.js 16.3+ (App Router), React 19, TypeScript, Tailwind CSS v4, Lucide React Icons.
-- **Backend (`server/`):** Node.js, Express.js 5.x, JWT Authentication, `bcryptjs` password hashing.
+- **Auth:** Neon Auth (Managed Better Auth) via `@neon/auth` in Next.js; Express verifies Neon JWTs against the JWKS URL with `jose`. Roles live in the app's `users` table.
+- **Backend (`server/`):** Node.js, Express.js 5.x.
 - **Database:** PostgreSQL (`pg` pool) with ACID transactional row locking (`SELECT FOR UPDATE`) and fallback in-memory store for standalone dev.
 - **Security & CORS:** Dynamic CORS matching Vercel (`*.vercel.app`), Render (`*.onrender.com`), and Localhost (`localhost:3000`, `localhost:3001`), Helmet headers, rate limiting.
 
@@ -47,16 +48,24 @@
 PORT=5000
 NODE_ENV=development
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/blood_drive_db
-JWT_SECRET=super_secret_blood_donation_coordinator_jwt_key_2026!
-JWT_EXPIRES_IN=7d
+NEON_AUTH_BASE_URL=https://ep-xxxx.neonauth.REGION.aws.neon.tech/neondb/auth
+NEON_AUTH_JWKS_URL=https://ep-xxxx.neonauth.REGION.aws.neon.tech/neondb/auth/.well-known/jwks.json
 FRONTEND_URL=http://localhost:3000
 ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001,https://blood-donation-coordinator.vercel.app
 ```
 
-### Frontend (`client/my-app/.env`)
+### Frontend (`client/my-app/.env.local`)
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:5000/api
+# Server-only (never NEXT_PUBLIC_)
+NEON_AUTH_BASE_URL=https://ep-xxxx.neonauth.REGION.aws.neon.tech/neondb/auth
+NEON_AUTH_COOKIE_SECRET=<32+ random characters>
 ```
+
+### Neon console (one-time)
+1. Auth → enable **Verify email at signup** with the **code** method, and enable **Email OTP**.
+2. Auth → Domains: add the production Vercel origin (localhost is allowed by default).
+3. Production: configure custom SMTP under Auth email settings (the shared Neon mailer is for development).
 
 ---
 
@@ -67,7 +76,7 @@ NEXT_PUBLIC_API_URL=http://localhost:5000/api
 cd server
 node test_sprints.js
 ```
-*Validates health check, CORS origin headers (Vercel & Render), JWT auth & RBAC guards, dynamic slot math, parallel concurrency race condition handling (409 Conflict), pre-screening cooldowns, staff check-in/outcome logs, turnout analytics, and emergency broadcasts.*
+*Set `TEST_DONOR_TOKEN`, `TEST_DONOR2_TOKEN`, `TEST_COORDINATOR_TOKEN` and `TEST_STAFF_TOKEN` (Neon Auth JWTs for verified users with those roles) to run the full suite; without them only health, CORS and token-rejection checks run. Validates health check, CORS origin headers (Vercel & Render), Neon JWT verification & RBAC guards, dynamic slot math, parallel concurrency race condition handling (409 Conflict), pre-screening cooldowns, staff check-in/outcome logs, turnout analytics, and emergency broadcasts.*
 
 ### 2. Run Next.js Frontend
 ```bash
@@ -75,12 +84,8 @@ cd client/my-app
 npm run dev
 ```
 
-### 3. Quick Demo Login Switcher
-The navigation bar includes an **Instant Demo Switcher** with pre-configured accounts:
-- **Donor:** `donor@campus.edu` / `password123`
-- **Coordinator:** `coordinator@campus.edu` / `password123`
-- **Medical Staff:** `staff@campus.edu` / `password123`
-- **System Admin:** `admin@campus.edu` / `password123`
+### 3. Accounts
+Sign up at `/register` and verify the emailed code. Accounts created before the move to Neon Auth are linked automatically when someone registers again with the same email. An ADMIN role can only be granted by an existing admin.
 
 ---
 
@@ -90,11 +95,10 @@ The navigation bar includes an **Instant Demo Switcher** with pre-configured acc
 1. Connect repository and set root directory to `server`.
 2. Build command: `npm install`
 3. Start command: `node server.js`
-4. Environment variables: `DATABASE_URL`, `JWT_SECRET`, `FRONTEND_URL` (set to your Vercel frontend URL; it is also the base of password reset links).
-5. Password reset email (Brevo): `BREVO_API_KEY`, `MAIL_FROM_EMAIL` (a sender verified in Brevo), `MAIL_FROM_NAME`. Brevo is called over HTTPS because Render free instances block outbound SMTP.
+4. Environment variables: `DATABASE_URL`, `NEON_AUTH_BASE_URL`, `NEON_AUTH_JWKS_URL`, `FRONTEND_URL` (set to your Vercel frontend URL).
 
 ### Deploy Frontend to Vercel
 1. Connect repository and set root directory to `client/my-app`.
 2. Framework: Next.js.
-3. Set the Vercel environment variable `NEXT_PUBLIC_API_URL` to the Render backend origin (for example, `https://your-api.onrender.com`) or API base URL (for example, `https://your-api.onrender.com/api`). The frontend normalizes either value to a single `/api` suffix.
+3. Set the Vercel environment variable `NEXT_PUBLIC_API_URL` to the Render backend origin (for example, `https://your-api.onrender.com`) or API base URL (for example, `https://your-api.onrender.com/api`). The frontend normalizes either value to a single `/api` suffix. Also set `NEON_AUTH_BASE_URL` and `NEON_AUTH_COOKIE_SECRET` (not `NEXT_PUBLIC_`).
 4. After redeploying, verify the backend health endpoint at `https://your-api.onrender.com/api/health`.

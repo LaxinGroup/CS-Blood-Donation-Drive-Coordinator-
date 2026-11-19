@@ -37,7 +37,12 @@ forward a later phase's feature ahead of its dependencies.
 ## 3. Architecture
 
 - Next.js (App Router, server + client components) talks to the Express REST API over JSON;
-  the API verifies JWTs and executes ACID transactions/queries against PostgreSQL.
+  the API verifies Neon Auth JWTs and executes ACID transactions/queries against PostgreSQL.
+- Identity is Neon Auth (Managed Better Auth): sign-up, sign-in, sign-out, email verification
+  and password reset go Browser → Next.js `/api/auth/[...path]` proxy → Neon Auth. The browser
+  sends the Neon JWT as `Authorization: Bearer` to Express, which verifies it against the JWKS
+  URL (EdDSA; `iss` = `aud` = Auth URL origin) and loads the role from `users`
+  (`users.auth_user_id` = JWT `sub`). Roles never come from the token.
 - Slot booking must go through PostgreSQL transactional locks (`SELECT ... FOR UPDATE`) or
   equivalent atomic transactions — this is the core correctness guarantee of the whole system
   and is never optional, even for a "quick" booking feature.
@@ -52,13 +57,14 @@ Use:
   frontend.
 - React Hooks + Context API/React Query, Zod validation — state/forms.
 - Node.js (v20+), Express.js 5.x — backend.
-- JWT (HTTP-only cookies or bearer tokens) + `bcryptjs` — auth.
+- Neon Auth via `@neon/auth` (Next.js) — identity; `jose` JWKS verification (Express) — API auth.
 - CORS, Helmet, rate limiting, `dotenv` — hardening/config.
 - PostgreSQL via `pg` connection pooling, with row-level locking for concurrency-sensitive
   writes.
 
-Do not use: any booking write path that skips the transactional lock, or any auth approach
-other than JWT + bcryptjs.
+Do not use: any booking write path that skips the transactional lock, any auth approach other
+than Neon Auth + JWKS verification, or a second password store (no bcrypt/password columns in
+app tables; Neon Auth owns credentials).
 
 ## 5. Data model
 
@@ -83,20 +89,26 @@ Required before saving:
 - `POST /api/appointments` — donor booking, protected by the transactional lock; must return
   409 Conflict to the losing request when two users race for the last slot.
 
-- `POST /api/auth/forgot-password` — public, rate limited (5 / 15 min / IP); always 200 with a generic
-  message (no account enumeration); emails a one-time 30-minute reset link via Brevo.
-- `POST /api/auth/reset-password` — public, rate limited; consumes the token under `FOR UPDATE`, sets
-  `password_changed_at`, which invalidates every JWT issued before it (signs out all devices).
+- Sign-up, sign-in, sign-out, email verification (6-digit code) and password reset (6-digit code)
+  are Neon Auth endpoints behind the Next.js proxy `/api/auth/[...path]` — not Express routes.
+- `POST /api/auth/profile` (Express) — requires a valid Neon JWT with `emailVerified: true`.
+  Idempotent: returns the linked `users` row, links an unlinked row with the same email
+  (`FOR UPDATE`), or creates one (role DONOR|COORDINATOR|STAFF; never ADMIN). 201 when created,
+  409 if the email row is linked to a different identity.
+- `GET|PUT /api/auth/me` (Express) — current profile. 401 bad/expired token, 403
+  `EMAIL_NOT_VERIFIED`, 403 `PROFILE_REQUIRED` when no linked row exists yet.
 
 Pin any further endpoint exactly as each sprint implements it and keep this table current.
 
 ## 7. Security
 
-Never expose to the browser: `password_hash`, JWT signing secret, full pre-screen medical
-answers beyond what the donor's own session needs to see.
+Never expose to the browser: `NEON_AUTH_COOKIE_SECRET` (server-only, never `NEXT_PUBLIC_`),
+`DATABASE_URL`, full pre-screen medical answers beyond what the donor's own session needs to see.
 
-Never run from the browser: password hashing, slot-capacity locking/booking decisions, role
-authorization, donation-record writes.
+Never run from the browser: slot-capacity locking/booking decisions, role authorization,
+donation-record writes. Take identity (user id, email) only from the verified JWT, never from a
+request body. A requested role is honoured only when `/api/auth/profile` creates a new,
+non-ADMIN row; existing rows keep their stored role.
 
 Every endpoint must be guarded by role authorization; sensitive inputs validated and
 sanitized; rate limiting on auth endpoints; CORS configured explicitly (not wide open).
