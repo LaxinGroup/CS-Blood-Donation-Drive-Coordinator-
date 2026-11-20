@@ -113,11 +113,6 @@ export default function LoginPage() {
                 <p className="text-muted">Your bookings, donation history and drive tools.</p>
             </div>
 
-            <div className="notice notice--warn" role="note">
-                We moved to a new sign-in. Registered before? <Link href="/register" className="link">Create your account again</Link> with
-                the same email: your bookings and history carry over once you verify it.
-            </div>
-
             <Suspense fallback={<div className="app-card" aria-busy="true" />}>
                 <LoginForm />
             </Suspense>
